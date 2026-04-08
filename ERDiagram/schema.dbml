@@ -1,14 +1,7 @@
-// Use DBML to define your database structure
-// Docs: https://dbml.dbdiagram.io/docs
-
-
-
 Table users {
   id integer [primary key]
   name varchar
-  mobile_number VARCHAR(15) UNIQUE
-
-  
+  mobile_number VARCHAR(15) UNIQUE 
 }
 Table OTP{
   id integer [primary key]
@@ -200,7 +193,6 @@ Table prescriptions {
   notes text
   created_at timestamp
 }
-
 Table prescription_medicines {
   id int [pk]
   prescription_id int [ref: > prescriptions.prescription_id]
@@ -210,14 +202,12 @@ Table prescription_medicines {
   duration varchar      
   instructions text     
 }
-
 Table prescription_tests {
   id int [pk]
   prescription_id int [ref: > prescriptions.prescription_id]
   test_name varchar
   instructions text
 }
-
 Table prescription_files {
   id int [pk]
   prescription_id int [ref: > prescriptions.prescription_id]
