@@ -1,3 +1,8 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+
+
 Table users {
   id integer [primary key]
   name varchar
@@ -24,6 +29,8 @@ Table Doctors{
   google_review_url varchar
   average_rating decimal(2,1)
   total_reviews int
+  dotor_sign_image varchar
+  dotor_stamp_image varchar
 }
 
 Table Services{
@@ -184,4 +191,36 @@ Table doctor_unavailability {
   doctor_id int [ref:> Doctors.doctor_id]
   date date
   reason varchar
+}
+Table prescriptions {
+  prescription_id int [pk]
+  appointment_id int [ref: > appointments.appointment_id]
+  doctor_id int [ref: > Doctors.doctor_id]
+  patient_id int [ref: > patientDetails.patient_id]
+  notes text
+  created_at timestamp
+}
+
+Table prescription_medicines {
+  id int [pk]
+  prescription_id int [ref: > prescriptions.prescription_id]
+  medicine_name varchar
+  dosage varchar        
+  frequency varchar     
+  duration varchar      
+  instructions text     
+}
+
+Table prescription_tests {
+  id int [pk]
+  prescription_id int [ref: > prescriptions.prescription_id]
+  test_name varchar
+  instructions text
+}
+
+Table prescription_files {
+  id int [pk]
+  prescription_id int [ref: > prescriptions.prescription_id]
+  file_url varchar
+  file_type varchar   
 }
