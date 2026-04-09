@@ -3,16 +3,8 @@ Table users {
   name varchar
   mobile_number VARCHAR(15) UNIQUE 
 }
-Table OTP{
-  id integer [primary key]
-  mobile_number varchar(15)
-  otp_code varchar(6)
-  expires_at timestamp
-  is_verified boolean
-  created_at timestamp
-  user_id int [ref:> users.id]
-}
-Table Doctors{
+
+Table Doctors {
   doctor_id integer [primary key]
   name varchar
   doctor_email varchar 
@@ -28,25 +20,27 @@ Table Doctors{
   dotor_stamp_image varchar
 }
 
-Table Services{
+Table Services {
   service_id integer [primary key]
   doctor_id integer [ref: > Doctors.doctor_id]
   service_name varchar
 }
 
-Table consultingTime{
+Table consultingTime {
   consultingTimeId integer [primary key]
   doctor_id int [ref: > Doctors.doctor_id]
   startTime time
   endTime time
   repeat bool
 }
+
 Table consulting_days {
   id int [pk]
   consultingTimeId int [ref:> consultingTime.consultingTimeId]
   day varchar  
 }
-Table TimeSlot{
+
+Table TimeSlot {
   slot_id integer [primary key]
   doctor_id int [ref: > Doctors.doctor_id]
   date date
@@ -55,7 +49,18 @@ Table TimeSlot{
   is_available boolean
 }
 
-Table appointments{
+Table patientDetails {
+  patient_id int [primary key]
+  user_id int [ref: > users.id]
+  patient_name varchar
+  patient_age int
+  gender varchar
+  weight DECIMAL(5,2)
+  relation varchar
+  recorded_at timestamp
+}
+
+Table appointments {
   appointment_id int [primary key]
   doctor_id int [ref: > Doctors.doctor_id]
   user_id int [ref: > users.id]
@@ -69,150 +74,29 @@ Table appointments{
   source varchar
   ivr_reference_id varchar 
   ivr_status varchar
-  Visit_type  varchar
+  Visit_type varchar
   payment_status bool
   created_at TIMESTAMP
   updated_at TIMESTAMP
+}
 
-}
-Table payments {
-  id int [pk]
-  appointment_id int  [ref:> appointments.appointment_id]
-  amount decimal(8,2)
-  status varchar
-  payment_method varchar
-  created_at timestamp
-}
-Table patientDetails{
-  patient_id int [primary key]
-  user_id int [ref: > users.id]
-  patient_name varchar
-  patient_age  int
-  gender varchar
-  weight DECIMAL(5,2)
-  relation varchar
-  recorded_at timestamp
-}
-Table Patientchat{
-  chat_id int [primary key]
-  user_id int [ref: > users.id]
-  doctor_id int [ref:> Doctors.doctor_id]
-  sender_type varchar
-  message text
-  created_at timestamp
-}
-Table feedback {
-  feedback_id int [primary key]
-  appointment_id int [ref:> appointments.appointment_id]
-  octor_rating int      
-  clinic_rating int       
-  waiting_time_rating int 
-  comment text
-  created_at timestamp
-}
-Table notifications {
-  notification_id int [pk]
-  user_id int [ref: > users.id]
-  appointment_id int [ref: > appointments.appointment_id]
-  message text
-  type varchar 
-  is_read boolean
-  created_at timestamp
-}
 Table patient_followups {
-  patient_followups_id  int [pk]
+  patient_followups_id int [pk]
   appointment_id int [ref:> appointments.appointment_id]
   status varchar
   message text
 }
-Table communities {
-  id int [pk]
-  doctor_id int [ref:> Doctors.doctor_id]
-  name varchar
-  created_at timestamp
-}
-Table community_members {
-  id int [pk]
-  community_id int [ref:> communities.id]
-  user_id int [ref:> users.id]
-  joined_at timestamp
-}
-Table support_tickets{
-  id int [pk]
-  user_id int [ref:> users.id]          
-  subject varchar
-  description text
-  status varchar  
-  priority varchar  
-  created_at timestamp
-  updated_at timestamp
-}
-Table support_messages {
-  id int [pk]
-  ticket_id int [ref:> support_tickets.id] 
-  sender_id int  
-  sender_type varchar
-  message text
-  created_at timestamp
-}
-Table support_agents {
-  id int [pk]
-  name varchar
-  email varchar
-}
-Table review_requests {
-  id int [pk]
-  user_id int [ref:> users.id]
-  doctor_id int [ref:> Doctors.doctor_id]
-  appointment_id int [ref:> appointments.appointment_id]
-  status varchar  
-  created_at timestamp
-}
+
 Table appointment_status_history {
   id int [pk]
   appointment_id int [ref:> appointments.appointment_id]
   status varchar
   updated_at timestamp
 }
-Table community_messages {
-  id int [pk]
-  community_id int [ref:> communities.id]
-  user_id int [ref:> users.id]
-  message text
-  created_at timestamp
-}
+
 Table doctor_unavailability {
   id int [pk]
   doctor_id int [ref:> Doctors.doctor_id]
   date date
   reason varchar
-}
-Table prescriptions {
-  prescription_id int [pk]
-  appointment_id int [ref: > appointments.appointment_id]
-  doctor_id int [ref: > Doctors.doctor_id]
-  patient_id int [ref: > patientDetails.patient_id]
-  notes text
-  created_at timestamp
-}
-Table prescription_medicines {
-  id int [pk]
-  prescription_id int [ref: > prescriptions.prescription_id]
-  medicine_name varchar
-  dosage varchar        
-  frequency varchar     
-  duration varchar      
-  instructions text     
-}
-Table prescription_tests {
-  id int [pk]
-  prescription_id int [ref: > prescriptions.prescription_id]
-  test_name varchar
-  instructions text
-}
-Table prescription_files {
-  id int [pk]
-  prescription_id int [ref: > prescriptions.prescription_id]
-  file_url varchar
-  file_type varchar   
 }
