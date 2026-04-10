@@ -1,0 +1,48 @@
+// user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+
+@Entity('doctors')
+export class Doctors {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  name: string;
+
+  @Column({ unique: true, length: 15 })
+  mobileNumber: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string;
+
+  @Column({ nullable: true })
+  imageUrl: string;
+
+  @Column()
+  specialization: string;
+
+  @Column({  nullable: true,type: 'int' })
+  experienceYears: number;
+
+
+  @Column({ nullable: true })
+  achievement: string;
+
+  @Column({ nullable: true })
+  googleReviewUrl: string;
+
+  @Column({ type: 'decimal', precision: 3, scale: 2, default: 0 })
+  averageRating: number;
+
+  @Column({ type: 'int', default: 0 })
+  totalReviews: number;
+
+  @Column({ nullable: true })
+  doctorSignImage: string;
+
+  @Column({ nullable: true })
+  doctorStampImage: string;
+}
