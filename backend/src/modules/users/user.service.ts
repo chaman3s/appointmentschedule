@@ -80,6 +80,9 @@ export class UserService {
     if (data.name !== undefined) {
       user.name = data.name;
     }
+    if (user.name) {
+      user.isProfileCompleted = true;
+    }
     await this.userRepo.save(user);
 
     return {

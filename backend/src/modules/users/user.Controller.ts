@@ -27,4 +27,16 @@ export class UserController {
       body,
     );
   }
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Patch('onbording')
+  updateProfileonBording(
+    @Req() req,
+    @Body() body: UpdateUserProfileDto,
+  ) {
+    return this.userService.updateUserProfile(
+      req.user.sub,
+      body,
+    );
+  }
 }
