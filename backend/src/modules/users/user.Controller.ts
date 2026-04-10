@@ -1,8 +1,12 @@
-import { Controller } from "@nestjs/common";
+import { Controller,UseGuards, Req,Get,Post} from "@nestjs/common";
+import { Jwtguard } from '../common/Guard/jwt.guard';
+import { UserService } from './user.service';
 
 @Controller('user')
 export class  UserController{
-    @Post('/profile'){
-        
+    @UseGuards(Jwtguard)
+    @Get('profile')
+    getProfile(@Req() req) {    
+        return this.UserService.getUserProfile(req.user.sub);
     }
 }
