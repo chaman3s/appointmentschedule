@@ -42,7 +42,6 @@ export class DoctorServices {
       mobileNumber,
       email,
       password,
-      specialization,
     } = data;
 
     if (!mobileNumber || !password || !name) {
@@ -63,7 +62,6 @@ export class DoctorServices {
       mobileNumber,
       email,
       password: hashedPassword,
-      specialization,
     });
     await this.doctorsRepo.save(newDoctor);
     const { password: _, ...result } = newDoctor;
@@ -100,5 +98,32 @@ export class DoctorServices {
       profile: rest,
     };
 
+  }
+  // doctor.service.ts
+  async onboardingDoctorProfile(id: number, data: UpdateProfileDoctorDto) {
+    const doctor = await this.doctorsRepo.findOne({ where: { id } });
+
+    if (!doctor) {
+      return { message: 'Doctor not found' };
+    }
+
+    // update fields
+    Object.assign(doctor, data);
+
+    if (
+      doctor.name &&
+      doctor.specialization &&
+      doctor.experienceYears !== null
+    ) {
+      doctor.isProfileCompleted = true;
+    }
+
+    await this.doctorsRepo.save(doctor);
+    const { password, ...rest } = doctor;
+
+    return {
+      message: 'Profile updated successfully',
+      profile: rest,
+    };
   }
 }

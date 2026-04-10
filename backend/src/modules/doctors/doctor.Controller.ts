@@ -26,4 +26,16 @@ export class DoctorController {
             body,
         );
     }
+    @UseGuards(Jwtguard, RolesGuard)
+    @Roles('doctor')
+    @Patch('onboarding')
+    updateProfile(
+        @Req() req,
+        @Body() body: UpdateProfileDoctorDto,
+    ) {
+        return this.doctorServices.updateDoctorProfile(
+            req.user.sub,
+            body,
+        );
+    }
 }

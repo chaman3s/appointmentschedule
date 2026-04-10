@@ -17,7 +17,8 @@ export class Doctors {
 
   @Column({ select: false })
   password: string;
-
+  @Column({ default: false })
+  isProfileCompleted: boolean;
   @Column({ nullable: true })
   imageUrl: string;
 

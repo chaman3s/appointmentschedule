@@ -12,5 +12,7 @@ export class User {
 
   @Column({ unique: true, length: 15 })
   mobileNumber: string;
+  @Column({ default: false })
+  isProfileCompleted: boolean;
 
 }
