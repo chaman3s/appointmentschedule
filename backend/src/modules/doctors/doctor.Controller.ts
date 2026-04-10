@@ -29,13 +29,11 @@ export class DoctorController {
     @UseGuards(Jwtguard, RolesGuard)
     @Roles('doctor')
     @Patch('onboarding')
-    updateProfile(
+    updateProfileOnBoarding(
         @Req() req,
         @Body() body: UpdateProfileDoctorDto,
     ) {
         return this.doctorServices.onboardingDoctorProfile(
-            req.user.sub,
-            body,
-        );
+            req.user.sub,body)
+        }
     }
-}
