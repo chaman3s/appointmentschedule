@@ -3,6 +3,7 @@ import { Doctors } from './entity/doctor.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { UpdateProfileDoctorDto } from './dto/updateprofile.doctor.dto';
 
 @Injectable()
 export class DoctorServices {
@@ -11,7 +12,6 @@ export class DoctorServices {
     private doctorsRepo: Repository<Doctors>,
   ) { }
 
-  // ✅ LOGIN
   async login(number: string, password: string) {
     if (!number || !password) {
       return { message: 'Please enter number and password' };
@@ -24,15 +24,11 @@ export class DoctorServices {
     if (!doctor) {
       return { message: 'Invalid number or password' };
     }
-
-    // ✅ compare hashed password
     const isMatch = await bcrypt.compare(password, doctor.password);
 
     if (!isMatch) {
       return { message: 'Invalid number or password' };
     }
-
-    // ❌ don't return password
     const { password: _, ...result } = doctor;
 
     return {
@@ -40,8 +36,6 @@ export class DoctorServices {
       doctor: result,
     };
   }
-
-  // ✅ SIGNUP
   async createDoctor(data: any) {
     const {
       name,
@@ -91,5 +85,20 @@ export class DoctorServices {
     return {
       profile: rest,
     };
+  }
+  async updateDoctorProfile(id: number, data: UpdateProfileDoctorDto) {
+    const doctor = await this.doctorsRepo.findOne({
+      where: { id },
+    });
+    if (!doctor) return { message: "Doctor are not found" }
+    Object.assign(doctor, data)
+    await this.doctorsRepo.save(doctor);
+    const { password, ...rest } = doctor;
+
+    return {
+      message: 'Profile updated successfully',
+      profile: rest,
+    };
+
   }
 }
