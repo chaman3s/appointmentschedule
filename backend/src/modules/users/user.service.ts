@@ -1,3 +1,4 @@
+import { UpdateUserProfileDto } from './dto/userprofile.dto';
 import { Injectable } from '@nestjs/common';
 import { User } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,7 +9,7 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private userRepo: Repository<User>,
-  ) {}
+  ) { }
   async login(number: string) {
     if (!number) {
       return { message: 'Please enter number first!' };
@@ -68,6 +69,21 @@ export class UserService {
     }
 
     return {
+      profile: user,
+    };
+  }
+  async updateUserProfile(id: number, data: UpdateUserProfileDto) {
+    const user = await this.userRepo.findOne({
+      where: { id },
+    });
+    if (!user) return { message: "User are not found" }
+    if (data.name !== undefined) {
+      user.name = data.name;
+    }
+    await this.userRepo.save(user);
+
+    return {
+      message: 'Profile updated successfully',
       profile: user,
     };
   }
