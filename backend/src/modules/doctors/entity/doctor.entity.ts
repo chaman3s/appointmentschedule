@@ -1,5 +1,5 @@
 // user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column,OneToMany } from 'typeorm';
 import { Services } from './services.entity';
 @Entity('doctors')
 export class Doctors {
@@ -47,5 +47,4 @@ export class Doctors {
   doctorStampImage: string;
   @OneToMany(() => Services, (service) => service.doctor)
   services: Services[];
-}
 }

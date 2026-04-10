@@ -5,6 +5,7 @@ import { getDatabaseConfig } from './config/database.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/users/user.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -14,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
       useFactory: (config: ConfigService) => getDatabaseConfig(config),
 }),
     AuthModule,
+    UserModule,
   ],
   controllers: [AppController],  providers: [AppService],
 })

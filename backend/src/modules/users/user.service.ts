@@ -21,8 +21,6 @@ export class UserService {
     if (!user) {
       return { message: 'Invalid mobile number' };
     }
-
-    // ✅ return safe data only
     const { mobileNumber, name, id } = user;
 
     return {
@@ -30,8 +28,6 @@ export class UserService {
       user: { id, name, mobileNumber },
     };
   }
-
-  // ✅ CREATE USER
   async createUser(number: string, name: string) {
     if (!number || !name) {
       return { message: 'Please enter all details!' };
@@ -60,6 +56,19 @@ export class UserService {
         name: newUser.name,
         mobileNumber: newUser.mobileNumber,
       },
+    };
+  }
+  async getUserProfile(id: number) {
+    const user = await this.userRepo.findOne({
+      where: { id },
+    });
+
+    if (!user) {
+      return { message: 'Please login again' };
+    }
+
+    return {
+      profile: user,
     };
   }
 }

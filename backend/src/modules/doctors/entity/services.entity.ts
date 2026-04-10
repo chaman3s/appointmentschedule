@@ -1,5 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-import {Doctors} from "./doctor.entity"
+import { Entity, PrimaryGeneratedColumn, Column,ManyToOne ,JoinColumn} from 'typeorm';
+import { Doctors } from './doctor.entity';
 @Entity('Services')
 export class Services{
    @PrimaryGeneratedColumn()
