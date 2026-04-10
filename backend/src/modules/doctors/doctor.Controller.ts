@@ -33,7 +33,7 @@ export class DoctorController {
         @Req() req,
         @Body() body: UpdateProfileDoctorDto,
     ) {
-        return this.doctorServices.updateDoctorProfile(
+        return this.doctorServices.onboardingDoctorProfile(
             req.user.sub,
             body,
         );
