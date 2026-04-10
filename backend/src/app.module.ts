@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/user.module';
+import { DoctorModule } from './modules/doctors/doctors.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -13,10 +14,11 @@ import { UserModule } from './modules/users/user.module';
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => getDatabaseConfig(config),
-}),
+    }),
     AuthModule,
     UserModule,
+    DoctorModule,
   ],
-  controllers: [AppController],  providers: [AppService],
+  controllers: [AppController], providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

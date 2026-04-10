@@ -9,7 +9,7 @@ export class DoctorServices {
   constructor(
     @InjectRepository(Doctors)
     private doctorsRepo: Repository<Doctors>,
-  ) {}
+  ) { }
 
   // ✅ LOGIN
   async login(number: string, password: string) {
@@ -62,8 +62,6 @@ export class DoctorServices {
     if (existing) {
       return { message: 'Doctor already exists' };
     }
-
-    // ✅ hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newDoctor = this.doctorsRepo.create({
@@ -73,15 +71,25 @@ export class DoctorServices {
       password: hashedPassword,
       specialization,
     });
-
     await this.doctorsRepo.save(newDoctor);
-
-    // ❌ don't return password
     const { password: _, ...result } = newDoctor;
-
     return {
       message: 'Doctor created',
       doctor: result,
+    };
+  }
+  async getDoctorProfile(id: number) {
+    const user = await this.doctorsRepo.findOne({
+      where: { id },
+    });
+
+    if (!user) {
+      return { message: 'Please login again' };
+    }
+    const { password, ...rest } = user;
+
+    return {
+      profile: rest,
     };
   }
 }
