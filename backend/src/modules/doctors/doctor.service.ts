@@ -19,6 +19,7 @@ export class DoctorServices {
 
     const doctor = await this.doctorsRepo.findOne({
       where: { mobileNumber: number },
+      select: ['id', 'password', 'mobileNumber', 'name']
     });
 
     if (!doctor) {
@@ -70,7 +71,8 @@ export class DoctorServices {
       doctor: result,
     };
   }
-  async getDoctorProfile(id: number) {
+  async getDoctorProfile(id: any) {
+    console.log("userid:",id)
     const user = await this.doctorsRepo.findOne({
       where: { id },
     });
@@ -106,7 +108,9 @@ export class DoctorServices {
     ) {
       doctor.isProfileCompleted = true;
     }
-
+    else if (doctor.isProfileCompleted==false){
+       return{message:'Check you fill this filed name ,specialization, experienceYears'}
+    }
     await this.doctorsRepo.save(doctor);
 
     const { password, ...rest } = doctor;

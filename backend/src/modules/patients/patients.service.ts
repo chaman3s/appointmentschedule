@@ -10,44 +10,58 @@ export class PatientService {
   constructor(
     @InjectRepository(Patients)
     private patientRepo: Repository<Patients>,
-  ) { }
+  ) {}
 
-  async createOrUpdate(userId: any, dto: CreatePatientDto) {
-    console.log('DTO:', dto);
-    console.log('USER ID:', userId, typeof userId);
-
-    let patient = await this.patientRepo.findOne({
-      where: { user: { id: userId } }, // ✅ FIX
+  // ✅ CREATE (multiple patients allowed)
+  async create(userId: number, dto: CreatePatientDto) {
+    const patient = this.patientRepo.create({
+      ...dto,
+      user: { id: userId },
     });
-
-    console.log('FOUND PATIENT:', patient);
-
-    if (!patient) {
-      const newPatient = this.patientRepo.create({
-        ...dto,
-        user_id: userId, // ✅ simple + stable
-      });
-
-      return await this.patientRepo.save(newPatient);
-    }
-
-    patient.patient_name = dto.patient_name;
-    patient.patient_age = dto.patient_age;
-    patient.gender = dto.gender;
-    patient.weight = dto.weight;
-    patient.relation = dto.relation;
 
     return await this.patientRepo.save(patient);
   }
-  async getProfile(userId: number) {
-    const patient = await this.patientRepo.findOne({
+
+  // ✅ GET ALL PATIENTS (verify)
+  async getAll(userId: number) {
+    const patients = await this.patientRepo.find({
       where: { user: { id: userId } },
     });
 
-    if (!patient) {
-      throw new NotFoundException('Patient profile not found');
+    if (patients.length === 0) {
+      throw new NotFoundException('No patients found');
     }
 
-    return patient;
+    return patients;
+  }
+
+  // ✅ UPDATE SPECIFIC PATIENT
+  async update(patientId: number, dto: CreatePatientDto) {
+    const patient = await this.patientRepo.findOne({
+      where: { patient_id: patientId },
+    });
+
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    Object.assign(patient, dto);
+
+    return await this.patientRepo.save(patient);
+  }
+
+  // ✅ DELETE (optional but important)
+  async remove(patientId: number) {
+    const patient = await this.patientRepo.findOne({
+      where: { patient_id: patientId },
+    });
+
+    if (!patient) {
+      throw new NotFoundException('Patient not found');
+    }
+
+    await this.patientRepo.remove(patient);
+
+    return { message: 'Patient deleted' };
   }
 }

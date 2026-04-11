@@ -7,6 +7,9 @@ import {
   Post,
   Body,
   Get,
+  Patch,
+  Delete,
+  Param
 } from '@nestjs/common';
 import { PatientService } from './patients.service';
 import { Jwtguard } from '../common/guard/jwt.guard';
@@ -16,22 +19,36 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { BadRequestException } from '@nestjs/common';
 @Controller('patients')
 export class PatientController {
-  constructor(private readonly patientService: PatientService) {}
+  constructor(private readonly patientService: PatientService) { }
+
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
-  @Post('profile')
-  createOrUpdate(@Req() req, @Body() dto: CreatePatientDto) {
-       if (!dto || Object.keys(dto).length === 0) {
-    throw new BadRequestException('Request body cannot be empty');
-  }
-    return this.patientService.createOrUpdate(req.user.sub, dto);
+  @Post()
+  create(@Req() req, @Body() dto: CreatePatientDto) {
+    return this.patientService.create(req.user.id, dto);
   }
 
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
-  @Get('profile')
-  getProfile(@Req() req) {
- 
-    return this.patientService.getProfile(req.user.sub);
+  @Get()
+  getAll(@Req() req) {
+    return this.patientService.getAll(req.user.id);
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Patch(':id')
+  update(
+    @Param('id') id: number,
+    @Body() dto: CreatePatientDto,
+  ) {
+    return this.patientService.update(id, dto);
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Delete(':id')
+  remove(@Param('id') id: number) {
+    return this.patientService.remove(id);
   }
 }
