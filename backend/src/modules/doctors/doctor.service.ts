@@ -72,7 +72,7 @@ export class DoctorServices {
     };
   }
   async getDoctorProfile(id: any) {
-    console.log("userid:",id)
+    console.log("userid:", id)
     const user = await this.doctorsRepo.findOne({
       where: { id },
     });
@@ -108,8 +108,8 @@ export class DoctorServices {
     ) {
       doctor.isProfileCompleted = true;
     }
-    else if (doctor.isProfileCompleted==false){
-       return{message:'Check you fill this filed name ,specialization, experienceYears'}
+    else if (doctor.isProfileCompleted == false) {
+      return { message: 'Check you fill this filed name ,specialization, experienceYears' }
     }
     await this.doctorsRepo.save(doctor);
 
@@ -118,6 +118,32 @@ export class DoctorServices {
     return {
       message: doctor ? 'Profile updated successfully' : 'Profile created successfully',
       profile: rest,
+    };
+  }
+  async getDoctors(specialization?: string, search?: string) {
+    const query = this.doctorsRepo.createQueryBuilder('doctor');
+    if (specialization) {
+      query.andWhere('doctor.specialization ILIKE :specialization', {
+        specialization: `%${specialization}%`,
+      });
+    }
+    if (search) {
+      query.andWhere('doctor.name ILIKE :search', {
+        search: `%${search}%`,
+      });
+    }
+
+    const doctors = await query.getMany();
+    if (doctors.length === 0) {
+      return {
+        message: 'No doctors found',
+        data: [],
+      };
+    }
+
+    return {
+      count: doctors.length,
+      data: doctors,
     };
   }
 }
