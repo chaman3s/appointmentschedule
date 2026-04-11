@@ -1,7 +1,7 @@
-// user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Patients } from '../../patients/entities/patient.entity';
 
-@Entity('users') // table name in DB
+@Entity('users')
 export class User {
 
   @PrimaryGeneratedColumn()
@@ -12,7 +12,6 @@ export class User {
 
   @Column({ unique: true, length: 15 })
   mobileNumber: string;
-  @Column({ default: false })
-  isProfileCompleted: boolean;
-
+  @OneToMany(() => Patients, (patient) => patient.user)
+  patientDetails: Patients[]; // ✅ FIXED
 }

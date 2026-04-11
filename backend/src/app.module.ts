@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/user.module';
 import { DoctorModule } from './modules/doctors/doctors.module';
+import { PatientsModule} from './modules/patients/patients.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -18,6 +19,7 @@ import { DoctorModule } from './modules/doctors/doctors.module';
     AuthModule,
     UserModule,
     DoctorModule,
+    PatientsModule,
   ],
   controllers: [AppController], providers: [AppService],
 })

@@ -4,12 +4,6 @@ export class UpdateProfileDoctorDto {
     @IsOptional()
     @IsString()
     name?: string;
-
-    @IsOptional()
-    @IsString()
-    @Length(10, 15)
-    mobileNumber?: string;
-
     @IsOptional()
     @IsEmail()
     email?: string;

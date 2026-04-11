@@ -84,32 +84,21 @@ export class DoctorServices {
       profile: rest,
     };
   }
-  async updateDoctorProfile(id: number, data: UpdateProfileDoctorDto) {
-    const doctor = await this.doctorsRepo.findOne({
-      where: { id },
+  async createOrUpdate(userId: number, dto: UpdateProfileDoctorDto) {
+    let doctor = await this.doctorsRepo.findOne({
+      where: { id: userId },
     });
-    if (!doctor) return { message: "Doctor are not found" }
-    Object.assign(doctor, data)
-    await this.doctorsRepo.save(doctor);
-    const { password, ...rest } = doctor;
 
-    return {
-      message: 'Profile updated successfully',
-      profile: rest,
-    };
-
-  }
-  // doctor.service.ts
-  async onboardingDoctorProfile(id: number, data: UpdateProfileDoctorDto) {
-    const doctor = await this.doctorsRepo.findOne({ where: { id } });
-
-    if (!doctor) {
-      return { message: 'Doctor not found' };
+    if (doctor) {
+      Object.assign(doctor, dto);
+    } else {
+      doctor = this.doctorsRepo.create({
+        id: userId,
+        ...dto,
+      });
     }
 
-    // update fields
-    Object.assign(doctor, data);
-
+    // ✅ Profile completion logic
     if (
       doctor.name &&
       doctor.specialization &&
@@ -119,10 +108,11 @@ export class DoctorServices {
     }
 
     await this.doctorsRepo.save(doctor);
+
     const { password, ...rest } = doctor;
 
     return {
-      message: 'Profile updated successfully',
+      message: doctor ? 'Profile updated successfully' : 'Profile created successfully',
       profile: rest,
     };
   }
