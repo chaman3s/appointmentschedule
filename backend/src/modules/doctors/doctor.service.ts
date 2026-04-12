@@ -99,8 +99,6 @@ export class DoctorServices {
         ...dto,
       });
     }
-
-    // ✅ Profile completion logic
     if (
       doctor.name &&
       doctor.specialization &&
