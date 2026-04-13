@@ -6,7 +6,7 @@ import {
   OneToMany,
 } from 'typeorm';
 
-import { Doctors } from './doctor.entity';
+import { Doctors } from '../../doctors/entity/doctor.entity';
 import { ConsultingDay } from './consultingDays.entity';
 
 @Entity()

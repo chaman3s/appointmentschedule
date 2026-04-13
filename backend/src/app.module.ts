@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/user.module';
 import { DoctorModule } from './modules/doctors/doctors.module';
 import { PatientsModule} from './modules/patients/patients.module';
+import { ConsultingTimeModule } from './modules/consulting-time/consulting-time.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -20,6 +21,7 @@ import { PatientsModule} from './modules/patients/patients.module';
     UserModule,
     DoctorModule,
     PatientsModule,
+    ConsultingTimeModule,
   ],
   controllers: [AppController], providers: [AppService],
 })

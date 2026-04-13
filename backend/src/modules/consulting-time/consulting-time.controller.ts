@@ -1,5 +1,3 @@
-// src/modules/doctors/consulting-time/consulting-time.controller.ts
-
 import {
   Controller,
   Post,
@@ -8,14 +6,15 @@ import {
   UseGuards,
   Get,
   Param,
+  Query
 } from '@nestjs/common';
 import { ConsultingTimeService } from './consulting-time.service';
 import { CreateConsultingTimeDto } from './DTO/create-consulting-time.dto';
-import { Jwtguard } from'../../common/Guard/jwt.guard';
+import { Jwtguard } from '../common/Guard/jwt.guard';
 
-@Controller('consultingTime')
+@Controller('doctor/consultingTime')
 export class ConsultingTimeController {
-  constructor(private readonly service: ConsultingTimeService) {}
+  constructor(private readonly service: ConsultingTimeService) { }
 
   // ✅ Create consulting time
   @UseGuards(Jwtguard)
@@ -37,7 +36,6 @@ export class ConsultingTimeController {
       order: { startTime: 'ASC' },
     });
   }
-
   // ✅ Get consulting time by doctorId (public)
   @Get(':doctorId')
   async getByDoctor(@Param('doctorId') doctorId: number) {
@@ -46,5 +44,12 @@ export class ConsultingTimeController {
       relations: ['days'],
       order: { startTime: 'ASC' },
     });
+  }
+  @Get('availability')
+  getAvailability(
+    @Req() req,
+    @Query('date') date: string,
+  ) {
+    return this.service.getAvailability(req.user.id, date);
   }
 }

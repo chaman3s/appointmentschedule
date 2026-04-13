@@ -1,7 +1,7 @@
 // user.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column,OneToMany } from 'typeorm';
 import { Services } from './services.entity';
-import { ConsultingTime } from './consultingTime.entity';
+import { ConsultingTime } from '../../consulting-time/entity/consultingTime.entity';
 @Entity('doctors')
 export class Doctors {
   @PrimaryGeneratedColumn()
