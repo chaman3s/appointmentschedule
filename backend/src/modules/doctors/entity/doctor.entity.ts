@@ -1,7 +1,7 @@
 // user.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column,OneToMany } from 'typeorm';
 import { Services } from './services.entity';
-import { ConsultingTime } from './consultingTime.entity';
+// import { ConsultingTime } from './consultingTime.entity';
 @Entity('doctors')
 export class Doctors {
   @PrimaryGeneratedColumn()
@@ -49,6 +49,6 @@ export class Doctors {
   doctorStampImage: string;
   @OneToMany(() => Services, (service) => service.doctor)
   services: Services[];
-   @OneToMany(() => ConsultingTime, (ct) => ct.doctor)
-  consultingTimes: ConsultingTime[];
+  //  @OneToMany(() => ConsultingTime, (ct) => ct.doctor)
+  // consultingTimes: ConsultingTime[];
 }
