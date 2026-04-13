@@ -23,7 +23,7 @@ export class Doctors {
   @Column({ nullable: true })
   imageUrl: string;
 
-  @Column()
+  @Column( nullable: true)
   specialization: string;
 
   @Column({ default:0, nullable: true,type: 'int' })
