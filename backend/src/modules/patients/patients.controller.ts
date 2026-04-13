@@ -12,8 +12,8 @@ import {
   Param
 } from '@nestjs/common';
 import { PatientService } from './patients.service';
-import { Jwtguard } from '../common/guard/jwt.guard';
-import { RolesGuard } from '../common/guard/roles.guard';
+import { Jwtguard } from '../common/Guard/jwt.guard';
+import { RolesGuard } from '../common/Guard/roles.guard';
 import { Roles } from '../common/decorator/roles.decorator';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { BadRequestException } from '@nestjs/common';
