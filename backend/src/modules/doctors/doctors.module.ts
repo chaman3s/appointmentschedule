@@ -1,13 +1,23 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
 import { Doctors } from './entity/doctor.entity';
 import { Services } from './entity/services.entity';
+import { ConsultingTime } from './entity/consultingTime.entity';
+import { ConsultingDay } from './entity/consultingDays.entity';
+
 import { DoctorServices } from './doctor.service';
 import { DoctorController } from './doctor.Controller';
-// import { ConsultingTimeModule } from './consulting-time/consulting-time.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Doctors, Services])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Doctors,
+      Services,
+      ConsultingTime,
+      ConsultingDay,
+    ]),
+  ],
   providers: [DoctorServices],
   controllers: [DoctorController],
   exports: [DoctorServices],

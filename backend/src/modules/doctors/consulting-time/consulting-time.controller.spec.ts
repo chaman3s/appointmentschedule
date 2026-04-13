@@ -1,18 +1,18 @@
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { ConsultingTimeController } from './consulting-time.controller';
+import { Test, TestingModule } from '@nestjs/testing';
+import { ConsultingTimeController } from './consulting-time.controller';
 
-// describe('ConsultingTimeController', () => {
-//   let controller: ConsultingTimeController;
+describe('ConsultingTimeController', () => {
+  let controller: ConsultingTimeController;
 
-//   beforeEach(async () => {
-//     const module: TestingModule = await Test.createTestingModule({
-//       controllers: [ConsultingTimeController],
-//     }).compile();
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ConsultingTimeController],
+    }).compile();
 
-//     controller = module.get<ConsultingTimeController>(ConsultingTimeController);
-//   });
+    controller = module.get<ConsultingTimeController>(ConsultingTimeController);
+  });
 
-//   it('should be defined', () => {
-//     expect(controller).toBeDefined();
-//   });
-// });
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
