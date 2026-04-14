@@ -5,21 +5,22 @@ import { getDatabaseConfig } from './config/database.config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
-
-
+import { UserModule } from './modules/users/user.module';
+import { DoctorModule } from './modules/doctors/doctors.module';
+import { PatientsModule} from './modules/patients/patients.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        getDatabaseConfig(config),
-    
+      useFactory: (config: ConfigService) => getDatabaseConfig(config),
     }),
     AuthModule,
+    UserModule,
+    DoctorModule,
+    PatientsModule,
   ],
-  controllers: [AppController], 
-  providers: [AppService],
+  controllers: [AppController], providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

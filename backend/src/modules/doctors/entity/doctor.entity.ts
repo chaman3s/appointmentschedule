@@ -1,6 +1,6 @@
 // user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-
+import { Entity, PrimaryGeneratedColumn, Column,OneToMany } from 'typeorm';
+import { Services } from './services.entity';
 @Entity('doctors')
 export class Doctors {
   @PrimaryGeneratedColumn()
@@ -15,16 +15,17 @@ export class Doctors {
   @Column({ unique: true })
   email: string;
 
-  @Column()
+  @Column({ select: false })
   password: string;
-
+  @Column({ default: false })
+  isProfileCompleted: boolean;
   @Column({ nullable: true })
   imageUrl: string;
 
   @Column()
   specialization: string;
 
-  @Column({  nullable: true,type: 'int' })
+  @Column({ default:0, nullable: true,type: 'int' })
   experienceYears: number;
 
 
@@ -45,4 +46,6 @@ export class Doctors {
 
   @Column({ nullable: true })
   doctorStampImage: string;
+  @OneToMany(() => Services, (service) => service.doctor)
+  services: Services[];
 }
