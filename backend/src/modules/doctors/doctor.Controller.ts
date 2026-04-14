@@ -8,11 +8,11 @@ import {
     Get,
     Query
 } from '@nestjs/common';
-import { Jwtguard } from '../common/guard/jwt.guard';
+import { Jwtguard } from '../common/Guard/jwt.guard';
 import { DoctorServices } from './doctor.service';
 import { UpdateProfileDoctorDto } from './dto/updateprofile.doctor.dto';
 import { Roles } from '../common/decorator/roles.decorator';
-import { RolesGuard } from '../common/guard/roles.guard';
+import { RolesGuard } from '../common/Guard/roles.guard';
 
 @Controller('doctors')
 export class DoctorController {

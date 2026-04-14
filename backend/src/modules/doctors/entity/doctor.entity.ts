@@ -1,6 +1,7 @@
 // user.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column,OneToMany } from 'typeorm';
 import { Services } from './services.entity';
+import { ConsultingTime } from '../../consulting-time/entity/consultingTime.entity';
 @Entity('doctors')
 export class Doctors {
   @PrimaryGeneratedColumn()
@@ -22,7 +23,7 @@ export class Doctors {
   @Column({ nullable: true })
   imageUrl: string;
 
-  @Column()
+  @Column( {nullable: true})
   specialization: string;
 
   @Column({ default:0, nullable: true,type: 'int' })
@@ -48,4 +49,6 @@ export class Doctors {
   doctorStampImage: string;
   @OneToMany(() => Services, (service) => service.doctor)
   services: Services[];
+   @OneToMany(() => ConsultingTime, (ct) => ct.doctor)
+  consultingTimes: ConsultingTime[];
 }
