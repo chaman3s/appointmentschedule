@@ -1,8 +1,14 @@
 import { Patients } from './../patients/entities/patient.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable, BadRequestException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
+
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { Appointment } from './entities/appointment.entity';
 import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
@@ -11,7 +17,6 @@ import { getDayName } from 'src/utils';
 
 @Injectable()
 export class AppointmentsService {
-
   constructor(
     @InjectRepository(Appointment)
     private readonly appointmentRepo: Repository<Appointment>,
@@ -22,8 +27,12 @@ export class AppointmentsService {
     @InjectRepository(CustomAvailability)
     private readonly customRepo: Repository<CustomAvailability>,
   ) { }
+
+  // =====================================================
+  // 🔷 GET AVAILABLE SLOTS (STREAM + WAVE)
+  // =====================================================
+
   async getAvailableSlots(doctorId: number, date: string) {
-    // ---------------- 1. CHECK CUSTOM ----------------
     const custom = await this.customRepo.findOne({
       where: {
         doctor: { id: doctorId },
@@ -34,14 +43,16 @@ export class AppointmentsService {
     let start: string;
     let end: string;
     let duration: number;
+    let schedulingType: 'STREAM' | 'WAVE';
+    let waveCapacity: number | null = null;
 
     if (custom) {
       start = custom.startTime;
       end = custom.endTime;
       duration = custom.slotDuration;
+      schedulingType = 'STREAM';
     } else {
-      // ---------------- 2. FALLBACK RECURRING ----------------
-      const dayName = getDayName(date); // 0-6
+      const dayName = getDayName(date);
 
       const consulting = await this.consultingRepo.find({
         where: {
@@ -51,7 +62,7 @@ export class AppointmentsService {
       });
 
       const matched = consulting.find(c =>
-        c.days?.some(d => d.day === dayName), // ✅ FIXED
+        c.days?.some(d => d.day === dayName),
       );
 
       if (!matched) return [];
@@ -59,12 +70,38 @@ export class AppointmentsService {
       start = matched.startTime;
       end = matched.endTime;
       duration = matched.slotDuration;
+
+      schedulingType = matched.scheduling_type;
+      waveCapacity = matched.wave_capacity;
     }
 
-    // ---------------- 3. GENERATE SLOTS ----------------
+    if (schedulingType === 'STREAM') {
+      return this.handleStream(start, end, duration, doctorId, date);
+    }
+
+    if (schedulingType === 'WAVE') {
+      if (!waveCapacity) {
+        throw new BadRequestException('Wave capacity not defined');
+      }
+      return this.handleWave(start, end, waveCapacity, doctorId, date);
+    }
+
+    return [];
+  }
+
+  // =====================================================
+  // 🔷 STREAM (FIXED SLOTS)
+  // =====================================================
+
+  async handleStream(
+    start: string,
+    end: string,
+    duration: number,
+    doctorId: number,
+    date: string,
+  ) {
     let slots = this.generateSlots(start, end, duration);
 
-    // ---------------- 4. REMOVE PAST ----------------
     const now = new Date();
     const isToday =
       new Date(date).toDateString() === now.toDateString();
@@ -74,7 +111,6 @@ export class AppointmentsService {
       slots = slots.filter(s => s.start > currentTime);
     }
 
-    // ---------------- 5. REMOVE BOOKED ----------------
     const bookings = await this.appointmentRepo.find({
       where: {
         doctor: { id: doctorId },
@@ -85,10 +121,53 @@ export class AppointmentsService {
 
     const bookedSet = new Set(bookings.map(b => b.start_time));
 
-    return slots.filter(slot => !bookedSet.has(slot.start));
+    return slots.map(slot => ({
+      ...slot,
+      available: !bookedSet.has(slot.start),
+    }));
   }
 
-  // ---------------- HELPER ----------------
+  // =====================================================
+  // 🔷 WAVE (CAPACITY BASED)
+  // =====================================================
+
+  async handleWave(
+    start: string,
+    end: string,
+    capacity: number,
+    doctorId: number,
+    date: string,
+  ) {
+    if (!capacity) {
+      throw new BadRequestException('Wave capacity not defined');
+    }
+
+    const bookingsCount = await this.appointmentRepo.count({
+      where: {
+        doctor: { id: doctorId },
+        appointment_date: date,
+        start_time: start,
+        status: 'booked',
+      },
+    });
+
+    const availableSpots = capacity - bookingsCount;
+
+    return [
+      {
+        start,
+        end,
+        capacity,
+        booked: bookingsCount,
+        available_spots: Math.max(availableSpots, 0),
+        is_full: bookingsCount >= capacity,
+      },
+    ];
+  }
+
+  // =====================================================
+  // 🔷 SLOT GENERATOR
+  // =====================================================
 
   generateSlots(
     start: string,
@@ -111,6 +190,7 @@ export class AppointmentsService {
 
     return slots;
   }
+
   toMinutes(time: string) {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
@@ -128,40 +208,57 @@ export class AppointmentsService {
     return `${h}:${m}`;
   }
 
+  // =====================================================
+  // 🔷 BOOK SLOT (STREAM + WAVE SAFE)
+  // =====================================================
+
   async bookSlot(dto: CreateAppointmentDto) {
     const { doctor_id, appointment_date, start_time, end_time } = dto;
 
-    // ---------------- 1. GET VALID SLOTS ----------------
-    const validSlots = await this.getAvailableSlots(
+    const slots = await this.getAvailableSlots(
       doctor_id,
       appointment_date,
     );
 
-    const slotExists = validSlots.some(
-      s => s.start === start_time && s.end === end_time,
-    );
+    const isWave = slots.length === 1 && 'capacity' in slots[0];
 
-    if (!slotExists) {
-      throw new BadRequestException('Invalid or unavailable slot');
+    if (isWave) {
+      const wave = slots[0] as {
+        start: string;
+        end: string;
+        capacity: number;
+        available_spots: number;
+      };
+
+      if (wave.available_spots <= 0) {
+        throw new BadRequestException('Wave is full');
+      }
+
+      dto.start_time = wave.start;
+      dto.end_time = wave.end;
+    } else {
+      const slotExists = slots.some(
+        s => s.start === start_time && s.end === end_time && s.available,
+      );
+
+      if (!slotExists) {
+        throw new BadRequestException('Invalid or unavailable slot');
+      }
     }
 
-    // ---------------- 2. MAP DTO → ENTITY ----------------
     const appointment = this.appointmentRepo.create({
       appointment_date: dto.appointment_date,
       start_time: dto.start_time,
       end_time: dto.end_time,
       consulting_type: dto.consulting_type,
 
-      // ✅ relations (correct mapping)
       doctor: { id: dto.doctor_id },
       user: { id: dto.user_id },
-      
-      // ✅ FIXED HERE
+
       patient: dto.patient_id
         ? { patient_id: dto.patient_id }
         : undefined,
 
-      // optional fields
       is_family: dto.is_family,
       payment_status: dto.payment_status,
       status: dto.status,
@@ -172,7 +269,6 @@ export class AppointmentsService {
       ivr_status: dto.ivr_status,
     });
 
-    // ---------------- 3. SAVE WITH CONFLICT HANDLING ----------------
     try {
       return await this.appointmentRepo.save(appointment);
     } catch (error) {
@@ -182,6 +278,11 @@ export class AppointmentsService {
       throw error;
     }
   }
+
+  // =====================================================
+  // 🔷 OTHER METHODS (UNCHANGED)
+  // =====================================================
+
   async addPatient(
     appointmentId: number,
     patientId: number,
@@ -196,7 +297,6 @@ export class AppointmentsService {
       throw new NotFoundException('Appointment not found');
     }
 
-    // 🔐 ensure user owns appointment
     if (appointment.user.id !== userId) {
       throw new ForbiddenException('Not your appointment');
     }
@@ -207,6 +307,7 @@ export class AppointmentsService {
 
     return await this.appointmentRepo.save(appointment);
   }
+
   async getUserAppointments(userId: number) {
     return this.appointmentRepo.find({
       where: {
@@ -218,6 +319,7 @@ export class AppointmentsService {
       },
     });
   }
+
   async getDoctorAppointments(doctorId: number) {
     return this.appointmentRepo.find({
       where: {

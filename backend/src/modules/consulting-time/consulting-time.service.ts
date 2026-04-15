@@ -27,7 +27,10 @@ export class ConsultingTimeService {
     private doctorRepo: Repository<Doctors>,
   ) { }
   async create(doctorId: number, dto: CreateConsultingTimeDto) {
-    const { startTime, endTime, days, repeat } = dto;
+    const { startTime, endTime, days, repeat,scheduling_type,wave_capacity } = dto;
+    if (scheduling_type === 'WAVE' && !wave_capacity) {
+      throw new BadRequestException('wave_capacity required for WAVE');
+    }
 
     if (startTime >= endTime) {
       throw new BadRequestException(
@@ -45,14 +48,14 @@ export class ConsultingTimeService {
     if (!doctor) {
       throw new BadRequestException('Doctor not found');
     }
-
-
     await this.checkConflict(doctorId, startTime, endTime, normalizedDays);
 
     const consultingTime = this.ctRepo.create({
       startTime,
       endTime,
       doctor,
+      scheduling_type,
+      wave_capacity,
       repeat: repeat ?? true,
     });
 
@@ -128,7 +131,6 @@ export class ConsultingTimeService {
     }));
   }
   async getAvailability(doctorId: number, date: string) {
-    // 1️⃣ Check custom override
     const custom = await this.customRepo.find({
       where: { doctor: { id: doctorId }, date },
     });
@@ -138,7 +140,7 @@ export class ConsultingTimeService {
         startTime: c.startTime,
         endTime: c.endTime,
       }));
-    }e
+    }
     const dayName = new Date(date)
       .toLocaleDateString('en-US', { weekday: 'long' })
       .toUpperCase();
@@ -156,10 +158,6 @@ export class ConsultingTimeService {
       endTime: r.endTime,
     }));
   }
-
-  // =========================
-  // ❌ PREVENT OVERLAP (RECURRING)
-  // =========================
   async checkConflict(
     doctorId: number,
     startTime: string,

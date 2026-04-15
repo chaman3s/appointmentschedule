@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsBoolean } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsBoolean,Min,IsEnum,ValidateIf,IsInt } from 'class-validator';
 
 export class CreateConsultingTimeDto {
   @IsString()
