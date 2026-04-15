@@ -48,8 +48,6 @@ export class UserService {
     });
 
     await this.userRepo.save(newUser);
-
-    // ✅ return safe response
     return {
       message: 'User created successfully',
       user: {

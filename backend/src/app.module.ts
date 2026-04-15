@@ -9,6 +9,9 @@ import { UserModule } from './modules/users/user.module';
 import { DoctorModule } from './modules/doctors/doctors.module';
 import { PatientsModule} from './modules/patients/patients.module';
 import { ConsultingTimeModule } from './modules/consulting-time/consulting-time.module';
+import { UserDoctorModule } from './modules/userdoctor/user-doctor.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -22,6 +25,8 @@ import { ConsultingTimeModule } from './modules/consulting-time/consulting-time.
     DoctorModule,
     PatientsModule,
     ConsultingTimeModule,
+    UserDoctorModule,
+    AppointmentsModule,
   ],
   controllers: [AppController], providers: [AppService],
 })

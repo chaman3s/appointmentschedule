@@ -20,8 +20,11 @@ export class ConsultingTime {
   @Column({ type: 'time' })
   endTime: string;
 
-  @Column({ default: false })
+  @Column({ default: true })
   repeat: boolean;
+  
+  @Column ({default:15})
+  slotDuration:number
 
   // ✅ FIXED (this was broken in your code)
   @ManyToOne(() => Doctors, (doctor) => doctor.consultingTimes, {

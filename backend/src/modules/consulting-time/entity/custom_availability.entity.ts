@@ -14,7 +14,8 @@ export class CustomAvailability {
 
   @Column()
   endTime: string;
-
+@Column ({default:15})
+  slotDuration:number;
   @ManyToOne(() => Doctors, (doctor) => doctor.id, {
     onDelete: 'CASCADE',
   })

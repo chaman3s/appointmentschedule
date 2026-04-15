@@ -1,4 +1,4 @@
-import { IsArray, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString,IsBoolean } from 'class-validator';
 
 export class CreateConsultingTimeDto {
   @IsString()
@@ -8,5 +8,8 @@ export class CreateConsultingTimeDto {
   endTime: string; // "05:00"
 
   @IsArray()
-  days: string[]; // ["MONDAY", "TUESDAY"]
+  days: string[]; 
+  @IsOptional()
+  @IsBoolean()
+  repeat?: boolean;
 }

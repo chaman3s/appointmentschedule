@@ -5,51 +5,84 @@ import {
   Req,
   UseGuards,
   Get,
-  Param,
-  Query
+  Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConsultingTimeService } from './consulting-time.service';
 import { CreateConsultingTimeDto } from './DTO/create-consulting-time.dto';
+import { CreateCustomAvailabilityDto } from './DTO/create-custom-availability.dto';
 import { Jwtguard } from '../common/Guard/jwt.guard';
+import { Roles } from '../common/decorator/roles.decorator';
+import { RolesGuard } from '../common/Guard/roles.guard';
 
 @Controller('doctor/consultingTime')
 export class ConsultingTimeController {
-  constructor(private readonly service: ConsultingTimeService) { }
+  constructor(private readonly service: ConsultingTimeService) {}
 
-  // ✅ Create consulting time
-  @UseGuards(Jwtguard)
+  // ✅ Create recurring availability
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('doctor')
   @Post('create')
   create(@Req() req, @Body() dto: CreateConsultingTimeDto) {
-    const doctorId = req.user.id; // 👈 comes from JWT
+    const doctorId = Number(req.user?.id);
+
+    if (!doctorId || isNaN(doctorId)) {
+      throw new BadRequestException('Invalid user');
+    }
+
     return this.service.create(doctorId, dto);
   }
 
-  // ✅ Get all consulting times of logged-in doctor
-  @UseGuards(Jwtguard)
+  // ✅ Get my recurring schedule
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('doctor')
   @Get('me')
-  async getMySchedule(@Req() req) {
-    const doctorId = req.user.id;
+  getMySchedule(@Req() req) {
+    const doctorId = Number(req.user?.id);
 
-    return this.service['ctRepo'].find({
-      where: { doctor: { id: doctorId } },
-      relations: ['days'],
-      order: { startTime: 'ASC' },
-    });
+    if (!doctorId || isNaN(doctorId)) {
+      throw new BadRequestException('Invalid user');
+    }
+
+    return this.service.getDoctorSchedule(doctorId);;
   }
-  // ✅ Get consulting time by doctorId (public)
-  @Get(':doctorId')
-  async getByDoctor(@Param('doctorId') doctorId: number) {
-    return this.service['ctRepo'].find({
-      where: { doctor: { id: doctorId } },
-      relations: ['days'],
-      order: { startTime: 'ASC' },
-    });
-  }
+
+  // ✅ Get availability (recurring + override)
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('doctor')
   @Get('availability')
-  getAvailability(
+  getAvailability(@Req() req, @Query('date') date: string) {
+    const doctorId = Number(req.user?.id);
+
+    if (!doctorId || isNaN(doctorId)) {
+      throw new BadRequestException('Invalid user');
+    }
+
+    if (!date) {
+      throw new BadRequestException('Date is required');
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('Invalid date format (YYYY-MM-DD)');
+    }
+
+    return this.service.getAvailability(doctorId, date);
+  }
+
+  // ✅ Create custom override
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('doctor')
+  @Post('custom-availability')
+  createCustom(
     @Req() req,
-    @Query('date') date: string,
+    @Body() dto: CreateCustomAvailabilityDto,
   ) {
-    return this.service.getAvailability(req.user.id, date);
+    const doctorId = Number(req.user?.id);
+
+    if (!doctorId || isNaN(doctorId)) {
+      throw new BadRequestException('Invalid user');
+    }
+
+    return this.service.createCustomAvailability(doctorId, dto);
   }
 }
