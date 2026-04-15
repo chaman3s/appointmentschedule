@@ -169,7 +169,7 @@ export class ConsultingTimeService {
     return recurring.map((r) => ({
       startTime: r.startTime,
       endTime: r.endTime,
-      scheduling_type: r.scheduling_type,
+      scheduling_type: r.scheduling_type ?? 'STREAM',
       wave_capacity: r.scheduling_type === 'WAVE' ? r.wave_capacity : null,
     }));
   }
