@@ -155,7 +155,7 @@ export class AppointmentsService {
       // ✅ relations (correct mapping)
       doctor: { id: dto.doctor_id },
       user: { id: dto.user_id },
-
+      
       // ✅ FIXED HERE
       patient: dto.patient_id
         ? { patient_id: dto.patient_id }

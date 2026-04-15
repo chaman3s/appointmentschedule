@@ -26,10 +26,6 @@ export class ConsultingTimeService {
     @InjectRepository(Doctors)
     private doctorRepo: Repository<Doctors>,
   ) {}
-
-  // =========================
-  // ✅ CREATE RECURRING
-  // =========================
   async create(doctorId: number, dto: CreateConsultingTimeDto) {
     const { startTime, endTime, days, repeat } = dto;
 
@@ -50,7 +46,7 @@ export class ConsultingTimeService {
       throw new BadRequestException('Doctor not found');
     }
 
-    // ❌ Prevent overlap
+   
     await this.checkConflict(doctorId, startTime, endTime, normalizedDays);
 
     const consultingTime = this.ctRepo.create({

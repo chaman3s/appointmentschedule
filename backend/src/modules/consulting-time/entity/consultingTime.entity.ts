@@ -25,8 +25,12 @@ export class ConsultingTime {
   
   @Column ({default:15})
   slotDuration:number
-
-  // ✅ FIXED (this was broken in your code)
+@Column({
+    type: 'enum',
+    enum: ['STREAM', 'WAVE'],
+    default: 'STREAM',
+  })
+  scheduling_type: 'Steam' | 'Wave';
   @ManyToOne(() => Doctors, (doctor) => doctor.consultingTimes, {
     onDelete: 'CASCADE',
   })
