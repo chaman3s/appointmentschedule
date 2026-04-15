@@ -229,23 +229,19 @@ export class AppointmentsService {
         capacity: number;
         available_spots: number;
       };
-
       if (wave.available_spots <= 0) {
         throw new BadRequestException('Wave is full');
       }
-
       dto.start_time = wave.start;
       dto.end_time = wave.end;
     } else {
       const slotExists = slots.some(
         s => s.start === start_time && s.end === end_time && s.available,
       );
-
       if (!slotExists) {
         throw new BadRequestException('Invalid or unavailable slot');
       }
     }
-
     const appointment = this.appointmentRepo.create({
       appointment_date: dto.appointment_date,
       start_time: dto.start_time,
@@ -258,7 +254,6 @@ export class AppointmentsService {
       patient: dto.patient_id
         ? { patient_id: dto.patient_id }
         : undefined,
-
       is_family: dto.is_family,
       payment_status: dto.payment_status,
       status: dto.status,
@@ -268,7 +263,6 @@ export class AppointmentsService {
       ivr_reference_id: dto.ivr_reference_id,
       ivr_status: dto.ivr_status,
     });
-
     try {
       return await this.appointmentRepo.save(appointment);
     } catch (error) {
@@ -278,11 +272,6 @@ export class AppointmentsService {
       throw error;
     }
   }
-
-  // =====================================================
-  // 🔷 OTHER METHODS (UNCHANGED)
-  // =====================================================
-
   async addPatient(
     appointmentId: number,
     patientId: number,
@@ -292,22 +281,17 @@ export class AppointmentsService {
       where: { appointment_id: appointmentId },
       relations: ['user'],
     });
-
     if (!appointment) {
       throw new NotFoundException('Appointment not found');
     }
-
     if (appointment.user.id !== userId) {
       throw new ForbiddenException('Not your appointment');
     }
-
     appointment.patient = {
       patient_id: patientId,
     } as Patients;
-
     return await this.appointmentRepo.save(appointment);
   }
-
   async getUserAppointments(userId: number) {
     return this.appointmentRepo.find({
       where: {
@@ -319,7 +303,6 @@ export class AppointmentsService {
       },
     });
   }
-
   async getDoctorAppointments(doctorId: number) {
     return this.appointmentRepo.find({
       where: {

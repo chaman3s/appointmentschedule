@@ -43,10 +43,8 @@ export class ConsultingTimeController {
     if (!doctorId || isNaN(doctorId)) {
       throw new BadRequestException('Invalid user');
     }
-
     return this.service.getDoctorSchedule(doctorId);;
   }
-
   // ✅ Get availability (recurring + override)
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('doctor')

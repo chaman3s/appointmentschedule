@@ -27,7 +27,7 @@ export class ConsultingTimeService {
     private doctorRepo: Repository<Doctors>,
   ) { }
   async create(doctorId: number, dto: CreateConsultingTimeDto) {
-    const { startTime, endTime, days, repeat,scheduling_type,wave_capacity } = dto;
+    const { startTime, endTime, days, repeat, scheduling_type, wave_capacity } = dto;
     if (scheduling_type === 'WAVE' && !wave_capacity) {
       throw new BadRequestException('wave_capacity required for WAVE');
     }
@@ -70,7 +70,17 @@ export class ConsultingTimeService {
 
     await this.dayRepo.save(dayEntities);
 
-    return { message: 'Consulting time created successfully' };
+    return {
+      message: 'Consulting time created successfully',
+      data: {
+        id: saved.consultingTimeId,
+        startTime,
+        endTime,
+        days: normalizedDays,
+        scheduling_type,
+        wave_capacity: scheduling_type === 'WAVE' ? wave_capacity : null,
+      },
+    };
   }
   async createCustomAvailability(
     doctorId: number,
@@ -128,6 +138,9 @@ export class ConsultingTimeService {
       startTime: item.startTime,
       endTime: item.endTime,
       days: item.days.map((d) => d.day),
+      scheduling_type: item.scheduling_type,
+      wave_capacity:
+        item.scheduling_type === 'WAVE' ? item.wave_capacity : null,
     }));
   }
   async getAvailability(doctorId: number, date: string) {
@@ -156,6 +169,8 @@ export class ConsultingTimeService {
     return recurring.map((r) => ({
       startTime: r.startTime,
       endTime: r.endTime,
+      scheduling_type: r.scheduling_type,
+      wave_capacity: r.scheduling_type === 'WAVE' ? r.wave_capacity : null,
     }));
   }
   async checkConflict(
