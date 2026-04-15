@@ -25,7 +25,7 @@ export class ConsultingTimeService {
 
     @InjectRepository(Doctors)
     private doctorRepo: Repository<Doctors>,
-  ) {}
+  ) { }
   async create(doctorId: number, dto: CreateConsultingTimeDto) {
     const { startTime, endTime, days, repeat } = dto;
 
@@ -46,7 +46,7 @@ export class ConsultingTimeService {
       throw new BadRequestException('Doctor not found');
     }
 
-   
+
     await this.checkConflict(doctorId, startTime, endTime, normalizedDays);
 
     const consultingTime = this.ctRepo.create({
@@ -69,10 +69,6 @@ export class ConsultingTimeService {
 
     return { message: 'Consulting time created successfully' };
   }
-
-  // =========================
-  // ✅ CREATE CUSTOM OVERRIDE
-  // =========================
   async createCustomAvailability(
     doctorId: number,
     dto: CreateCustomAvailabilityDto,
@@ -89,8 +85,6 @@ export class ConsultingTimeService {
     if (!doctor) {
       throw new BadRequestException('Doctor not found');
     }
-
-    // ❌ Prevent overlap on same date
     const conflict = await this.customRepo
       .createQueryBuilder('c')
       .where('c.doctorId = :doctorId', { doctorId })
@@ -114,10 +108,6 @@ export class ConsultingTimeService {
 
     return { message: 'Custom availability created successfully' };
   }
-
-  // =========================
-  // ✅ GET MY SCHEDULE (DOCTOR)
-  // =========================
   async getMySchedule(doctorId: number) {
     return this.ctRepo.find({
       where: { doctor: { id: doctorId } },
@@ -125,28 +115,18 @@ export class ConsultingTimeService {
       order: { startTime: 'ASC' },
     });
   }
-
-  // =========================
-  // ✅ GET DOCTOR SCHEDULE (USER)
-  // =========================
   async getDoctorSchedule(doctorId: number) {
     const data = await this.ctRepo.find({
       where: { doctor: { id: doctorId } },
       relations: ['days'],
       order: { startTime: 'ASC' },
     });
-
-    // ✅ Clean response (avoid info disclosure)
     return data.map((item) => ({
       startTime: item.startTime,
       endTime: item.endTime,
       days: item.days.map((d) => d.day),
     }));
   }
-
-  // =========================
-  // ✅ GET AVAILABILITY (CORE LOGIC)
-  // =========================
   async getAvailability(doctorId: number, date: string) {
     // 1️⃣ Check custom override
     const custom = await this.customRepo.find({
@@ -158,14 +138,11 @@ export class ConsultingTimeService {
         startTime: c.startTime,
         endTime: c.endTime,
       }));
-    }
-
-    // 2️⃣ Get day name
+    }e
     const dayName = new Date(date)
       .toLocaleDateString('en-US', { weekday: 'long' })
       .toUpperCase();
 
-    // 3️⃣ Get recurring
     const recurring = await this.ctRepo
       .createQueryBuilder('ct')
       .innerJoin('ct.days', 'd')

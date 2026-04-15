@@ -35,9 +35,8 @@ export class ConsultingTime {
     onDelete: 'CASCADE',
   })
   doctor: Doctors;
- @Column({ type: 'int', nullable: true ,})
+ @Column({ type: 'int', nullable: true })
   wave_capacity: number;
-  // ✅ correct
   @OneToMany(() => ConsultingDay, (day) => day.consultingTime)
   days: ConsultingDay[];
 }

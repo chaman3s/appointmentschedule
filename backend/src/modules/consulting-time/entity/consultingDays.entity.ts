@@ -7,7 +7,7 @@ export class ConsultingDay {
   id: number;
 
   @Column()
-  day: string; // MONDAY, TUESDAY etc
+  day: string; 
 
   @ManyToOne(() => ConsultingTime, (ct) => ct.days, {
     onDelete: 'CASCADE',
