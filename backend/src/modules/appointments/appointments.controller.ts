@@ -75,4 +75,25 @@ export class AppointmentsController {
   getMyAppointments(@Req() req) {
     return this.appointmentsService.getUserAppointments(req.user.id);
   }
+  @Patch('reschedule/:id')
+  @UseGuards(Jwtguard)
+  async reschedule(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req,
+    @Body()
+    body: {
+      date: string;
+      start_time: string;
+      end_time: string;
+    },
+  ) {
+    return this.appointmentsService.rescheduleAppointment(
+      id,
+      req.user.id,
+      body.date,
+      body.start_time,
+      body.end_time,
+    );
+  }
+
 }

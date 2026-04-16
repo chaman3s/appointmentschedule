@@ -1,5 +1,3 @@
-import { Patients } from './../patients/entities/patient.entity';
-import { InjectRepository } from '@nestjs/typeorm';
 import {
   Injectable,
   BadRequestException,
@@ -8,30 +6,220 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 
-import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
+
 import { Appointment } from './entities/appointment.entity';
-import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
+import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { Patients } from '../patients/entities/patient.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
-import { Repository } from 'typeorm';
-import { getDayName } from 'src/utils';
+import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
+import { SchedulingType, AppointmentStatus } from '../common/enums/appointment.enum';
+import { getDayName } from '../../utils/index';
+
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectRepository(Appointment)
-    private readonly appointmentRepo: Repository<Appointment>,
+  private readonly appointmentRepo: Repository<Appointment>,
 
-    @InjectRepository(ConsultingTime)
-    private readonly consultingRepo: Repository<ConsultingTime>,
+  @InjectRepository(ConsultingTime)
+  private readonly consultingRepo: Repository<ConsultingTime>,
 
-    @InjectRepository(CustomAvailability)
-    private readonly customRepo: Repository<CustomAvailability>,
-  ) { }
+  @InjectRepository(CustomAvailability)
+  private readonly customRepo: Repository<CustomAvailability>,
 
-  // =====================================================
-  // 🔷 GET AVAILABLE SLOTS (STREAM + WAVE)
-  // =====================================================
+  private readonly dataSource: DataSource,
+  ) {}
 
+  // ================= BOOK SLOT =================
+  async bookSlot(dto: CreateAppointmentDto) {
+    const {
+      doctor_id,
+      appointment_date,
+      start_time,
+      end_time,
+      scheduling_type,
+    } = dto;
+
+    return this.dataSource.transaction(async (manager) => {
+      const slots = await this.getAvailableSlots(
+        doctor_id,
+        appointment_date,
+      );
+
+      let finalStart = start_time;
+      let finalEnd = end_time;
+
+      const isWave = scheduling_type === SchedulingType.WAVE;
+
+      // VALIDATION
+      if (isWave) {
+        const wave = slots[0] as any;
+
+        if (!wave || wave.available_spots <= 0) {
+          throw new BadRequestException('Wave is full');
+        }
+
+        finalStart = wave.start;
+        finalEnd = wave.end;
+      } else {
+        const slotExists = slots.some(
+          (s: any) =>
+            s.start === start_time &&
+            s.end === end_time &&
+            s.available,
+        );
+
+        if (!slotExists) {
+          throw new BadRequestException('Invalid slot');
+        }
+      }
+
+      // DB VALIDATION WITH LOCK
+      const count = await manager
+        .createQueryBuilder(Appointment, 'a')
+        .setLock('pessimistic_write')
+        .where('a.doctor_id = :doctorId', { doctorId: doctor_id })
+        .andWhere('a.appointment_date = :date', {
+          date: appointment_date,
+        })
+        .andWhere('a.start_time = :start', { start: finalStart })
+        .andWhere('a.status = :status', {
+          status: AppointmentStatus.BOOKED,
+        })
+        .getCount();
+
+      if (scheduling_type === SchedulingType.STREAM && count > 0) {
+        throw new ConflictException('Slot already booked');
+      }
+
+      if (scheduling_type === SchedulingType.WAVE) {
+        let capacity = 1;
+
+        if (slots.length > 0 && 'capacity' in slots[0]) {
+          capacity = (slots[0] as any).capacity;
+        }
+
+        if (count >= capacity) {
+          throw new ConflictException('Wave full');
+        }
+      }
+
+      const appointment = manager.create(Appointment, {
+        ...dto,
+        start_time: finalStart,
+        end_time: finalEnd,
+        status: AppointmentStatus.BOOKED,
+      });
+
+      return manager.save(appointment);
+    });
+  }
+
+  // ================= RESCHEDULE =================
+  async rescheduleAppointment(
+    appointmentId: number,
+    userId: number,
+    newDate: string,
+    newStartTime: string,
+    newEndTime: string,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const appointment = await manager.findOne(Appointment, {
+        where: {
+          appointment_id: appointmentId,
+          user: { id: userId },
+        },
+        relations: ['doctor'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+
+      if (appointment.status !== AppointmentStatus.BOOKED) {
+        throw new BadRequestException(
+          'Only booked appointments can be rescheduled',
+        );
+      }
+
+      const isAvailable = await this.checkSlotAvailability(
+        manager,
+        appointment.doctor.id,
+        newDate,
+        newStartTime,
+        appointment.scheduling_type,
+        appointment.max_capacity,
+        appointment.appointment_id,
+      );
+
+      if (!isAvailable) {
+        throw new BadRequestException('Slot not available');
+      }
+
+      appointment.appointment_date = newDate;
+      appointment.start_time = newStartTime;
+      appointment.end_time = newEndTime;
+
+      return manager.save(appointment);
+    });
+  }
+
+  // ================= SLOT CHECK =================
+  async checkSlotAvailability(
+    manager: EntityManager,
+    doctorId: number,
+    date: string,
+    startTime: string,
+    type: SchedulingType,
+    capacity: number,
+    excludeId?: number,
+  ) {
+    const qb = manager
+      .createQueryBuilder(Appointment, 'a')
+      .where('a.doctor_id = :doctorId', { doctorId })
+      .andWhere('a.appointment_date = :date', { date })
+      .andWhere('a.start_time = :startTime', { startTime })
+      .andWhere('a.status = :status', {
+        status: AppointmentStatus.BOOKED,
+      });
+
+    if (excludeId) {
+      qb.andWhere('a.appointment_id != :id', { id: excludeId });
+    }
+
+    qb.setLock('pessimistic_write');
+
+    const count = await qb.getCount();
+
+    if (type === SchedulingType.STREAM) return count === 0;
+    if (type === SchedulingType.WAVE) return count < capacity;
+
+    return false;
+  }
+
+  // ================= ADD PATIENT =================
+  async addPatient(
+    appointmentId: number,
+    patientId: number,
+    userId: number,
+  ) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { appointment_id: appointmentId },
+      relations: ['user'],
+    });
+
+    if (!appointment) throw new NotFoundException();
+    if (appointment.user.id !== userId)
+      throw new ForbiddenException();
+
+    appointment.patient = { patient_id: patientId } as Patients;
+
+    return this.appointmentRepo.save(appointment);
+  }
   async getAvailableSlots(doctorId: number, date: string) {
     const custom = await this.customRepo.findOne({
       where: {
@@ -115,7 +303,7 @@ export class AppointmentsService {
       where: {
         doctor: { id: doctorId },
         appointment_date: date,
-        status: 'booked',
+        status: AppointmentStatus.BOOKED,
       },
     });
 
@@ -147,7 +335,7 @@ export class AppointmentsService {
         doctor: { id: doctorId },
         appointment_date: date,
         start_time: start,
-        status: 'booked',
+       status: AppointmentStatus.BOOKED,
       },
     });
 
@@ -207,86 +395,8 @@ export class AppointmentsService {
 
     return `${h}:${m}`;
   }
-  async bookSlot(dto: CreateAppointmentDto) {
-    const { doctor_id, appointment_date, start_time, end_time } = dto;
-
-    const slots = await this.getAvailableSlots(
-      doctor_id,
-      appointment_date,
-    );
-
-    const isWave = slots.length === 1 && 'capacity' in slots[0];
-
-    if (isWave) {
-      const wave = slots[0] as {
-        start: string;
-        end: string;
-        capacity: number;
-        available_spots: number;
-      };
-      if (wave.available_spots <= 0) {
-        throw new BadRequestException('Wave is full');
-      }
-      dto.start_time = wave.start;
-      dto.end_time = wave.end;
-    } else {
-      const slotExists = slots.some(
-        s => s.start === start_time && s.end === end_time && s.available,
-      );
-      if (!slotExists) {
-        throw new BadRequestException('Invalid or unavailable slot');
-      }
-    }
-    const appointment = this.appointmentRepo.create({
-      appointment_date: dto.appointment_date,
-      start_time: dto.start_time,
-      end_time: dto.end_time,
-      consulting_type: dto.consulting_type,
-
-      doctor: { id: dto.doctor_id },
-      user: { id: dto.user_id },
-
-      patient: dto.patient_id
-        ? { patient_id: dto.patient_id }
-        : undefined,
-      is_family: dto.is_family,
-      payment_status: dto.payment_status,
-      status: dto.status,
-      visit_type: dto.visit_type,
-      complaint: dto.complaint,
-      source: dto.source,
-      ivr_reference_id: dto.ivr_reference_id,
-      ivr_status: dto.ivr_status,
-    });
-    try {
-      return await this.appointmentRepo.save(appointment);
-    } catch (error) {
-      if (error.code === '23505') {
-        throw new ConflictException('Slot already booked');
-      }
-      throw error;
-    }
-  }
-  async addPatient(
-    appointmentId: number,
-    patientId: number,
-    userId: number,
-  ) {
-    const appointment = await this.appointmentRepo.findOne({
-      where: { appointment_id: appointmentId },
-      relations: ['user'],
-    });
-    if (!appointment) {
-      throw new NotFoundException('Appointment not found');
-    }
-    if (appointment.user.id !== userId) {
-      throw new ForbiddenException('Not your appointment');
-    }
-    appointment.patient = {
-      patient_id: patientId,
-    } as Patients;
-    return await this.appointmentRepo.save(appointment);
-  }
+ 
+  
   async getUserAppointments(userId: number) {
     const appointments = await this.appointmentRepo.find({
       where: {

@@ -1,3 +1,4 @@
+
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -6,35 +7,32 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  Unique,
-
+  Index,
 } from 'typeorm';
 
 import { Doctors } from '../../doctors/entity/doctor.entity';
 import { User } from '../../users/entities/user.entity';
 import { Patients } from '../../patients/entities/patient.entity';
-
+import { SchedulingType, AppointmentStatus } from '../../common/enums/appointment.enum';
+import { ConsultingTime } from '../../consulting-time/entity/consultingTime.entity';
+import { CustomAvailability } from '../../consulting-time/entity/custom_availability.entity';
 @Entity('appointments')
-@Unique('unique_doctor_slot', ['doctor', 'appointment_date', 'start_time'])
+@Index('idx_doctor_slot', ['doctor', 'appointment_date', 'start_time'])
 export class Appointment {
   @PrimaryGeneratedColumn()
   appointment_id: number;
 
-  // ---------------- RELATIONS ----------------
-
-  @ManyToOne(() => Doctors, { eager: false })
+  @ManyToOne(() => Doctors)
   @JoinColumn({ name: 'doctor_id' })
   doctor: Doctors;
 
-  @ManyToOne(() => User, { eager: false })
+  @ManyToOne(() => User)
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @ManyToOne(() => Patients, { nullable: true, eager: false })
+  @ManyToOne(() => Patients, { nullable: true })
   @JoinColumn({ name: 'patient_id' })
-  patient: Patients ;
-
-  // ---------------- CORE FIELDS ----------------
+  patient: Patients;
 
   @Column({ type: 'date' })
   appointment_date: string;
@@ -45,7 +43,21 @@ export class Appointment {
   @Column({ type: 'time' })
   end_time: string;
 
-  // ---------------- FLAGS ----------------
+  @Column({
+    type: 'enum',
+    enum: SchedulingType,
+  })
+  scheduling_type: SchedulingType;
+
+  @Column({
+    type: 'enum',
+    enum: AppointmentStatus,
+    default: AppointmentStatus.BOOKED,
+  })
+  status: AppointmentStatus;
+
+  @Column({ type: 'int', default: 1 })
+  max_capacity: number;
 
   @Column({ default: false })
   is_family: boolean;
@@ -53,18 +65,11 @@ export class Appointment {
   @Column({ type: 'boolean', default: false })
   payment_status: boolean;
 
-  // ---------------- ENUM-LIKE FIELDS ----------------
-
   @Column({ type: 'varchar', length: 50 })
-  consulting_type: string; // e.g. online, offline
-
-  @Column({ type: 'varchar', length: 50, default: 'booked' })
-  status: string; // booked, cancelled, completed
+  consulting_type: string;
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   visit_type: string;
-
-  // ---------------- OPTIONAL META ----------------
 
   @Column({ type: 'text', nullable: true })
   complaint: string;

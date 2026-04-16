@@ -1,12 +1,12 @@
-import { IsArray, IsOptional, IsString, IsBoolean,Min,IsEnum,ValidateIf,IsInt } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsBoolean, Min, IsEnum, ValidateIf, IsInt, IsNumber } from 'class-validator';
 
 export class CreateConsultingTimeDto {
   @IsString()
-  startTime: string; // "02:00"
-
+  startTime: string; // 
   @IsString()
-  endTime: string; // "05:00"
-
+  endTime: string;
+  @IsNumber()
+  slotDuration: number;
   @IsArray()
   days: string[];
   @IsOptional()

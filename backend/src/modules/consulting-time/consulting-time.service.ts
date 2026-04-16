@@ -16,51 +16,42 @@ export class ConsultingTimeService {
   constructor(
     @InjectRepository(ConsultingTime)
     private ctRepo: Repository<ConsultingTime>,
-
     @InjectRepository(ConsultingDay)
     private dayRepo: Repository<ConsultingDay>,
-
     @InjectRepository(CustomAvailability)
     private customRepo: Repository<CustomAvailability>,
-
     @InjectRepository(Doctors)
     private doctorRepo: Repository<Doctors>,
   ) { }
   async create(doctorId: number, dto: CreateConsultingTimeDto) {
-    const { startTime, endTime, days, repeat, scheduling_type, wave_capacity } = dto;
+    const { startTime, endTime, days, repeat, scheduling_type, wave_capacity ,slotDuration} = dto;
     if (scheduling_type === 'WAVE' && !wave_capacity) {
       throw new BadRequestException('wave_capacity required for WAVE');
     }
-
     if (startTime >= endTime) {
       throw new BadRequestException(
         'End time must be greater than start time',
       );
     }
-
     if (!days || days.length === 0) {
       throw new BadRequestException('Days are required');
     }
-
     const normalizedDays = days.map(normalizeDay);
-
     const doctor = await this.doctorRepo.findOneBy({ id: doctorId });
     if (!doctor) {
       throw new BadRequestException('Doctor not found');
     }
     await this.checkConflict(doctorId, startTime, endTime, normalizedDays);
-
     const consultingTime = this.ctRepo.create({
       startTime,
       endTime,
       doctor,
       scheduling_type,
       wave_capacity,
+      slotDuration,
       repeat: repeat ?? true,
     });
-
     const saved = await this.ctRepo.save(consultingTime);
-
     const dayEntities = normalizedDays.map((day) =>
       this.dayRepo.create({
         day,
@@ -77,6 +68,7 @@ export class ConsultingTimeService {
         startTime,
         endTime,
         days: normalizedDays,
+        slotDuration,
         scheduling_type,
         wave_capacity: scheduling_type === 'WAVE' ? wave_capacity : null,
       },

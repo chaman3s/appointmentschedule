@@ -8,6 +8,8 @@ import {
   IsDateString,
   Matches,
 } from 'class-validator';
+import { IsEnum } from 'class-validator';
+import { SchedulingType } from '../../common/enums/appointment.enum';
 
 export class CreateAppointmentDto {
   // ---------------- REQUIRED ----------------
@@ -39,7 +41,8 @@ export class CreateAppointmentDto {
 
   @IsOptional()
   patient_id?: number;
-
+  @IsEnum(SchedulingType)
+  scheduling_type: SchedulingType;
   @IsOptional()
   @IsBoolean()
   is_family?: boolean;
