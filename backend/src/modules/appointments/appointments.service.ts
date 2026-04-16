@@ -207,11 +207,6 @@ export class AppointmentsService {
 
     return `${h}:${m}`;
   }
-
-  // =====================================================
-  // 🔷 BOOK SLOT (STREAM + WAVE SAFE)
-  // =====================================================
-
   async bookSlot(dto: CreateAppointmentDto) {
     const { doctor_id, appointment_date, start_time, end_time } = dto;
 
