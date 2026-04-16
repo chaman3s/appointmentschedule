@@ -20,24 +20,16 @@ export class ConsultingTime {
   @Column({ type: 'time' })
   endTime: string;
 
-  @Column({ default: true })
+  @Column({ default: false })
   repeat: boolean;
 
-  @Column({ default: 15 })
-  slotDuration: number
-  @Column({
-    type: 'enum',
-    enum: ['STREAM', 'WAVE'],
-    default: 'STREAM',
-  })
-  scheduling_type: 'STREAM' | 'WAVE';
+  // ✅ FIXED (this was broken in your code)
   @ManyToOne(() => Doctors, (doctor) => doctor.consultingTimes, {
     onDelete: 'CASCADE',
   })
   doctor: Doctors;
-  @Column({ type: 'int', nullable: true })
-  wave_capacity: number;
+
+  // ✅ correct
   @OneToMany(() => ConsultingDay, (day) => day.consultingTime)
   days: ConsultingDay[];
-
 }

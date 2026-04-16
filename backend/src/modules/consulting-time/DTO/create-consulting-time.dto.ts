@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsBoolean,Min,IsEnum,ValidateIf,IsInt } from 'class-validator';
+import { IsArray, IsString } from 'class-validator';
 
 export class CreateConsultingTimeDto {
   @IsString()
@@ -8,15 +8,5 @@ export class CreateConsultingTimeDto {
   endTime: string; // "05:00"
 
   @IsArray()
-  days: string[];
-  @IsOptional()
-  @IsBoolean()
-  repeat?: boolean;
-  @IsEnum(['STREAM', 'WAVE'])
-  scheduling_type: 'STREAM' | 'WAVE';
-  @ValidateIf(o => o.scheduling_type === 'WAVE')
-  @IsInt()
-  @Min(1)
-  wave_capacity?: number;
-
+  days: string[]; // ["MONDAY", "TUESDAY"]
 }
