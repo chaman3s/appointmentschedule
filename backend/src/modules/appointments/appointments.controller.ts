@@ -63,7 +63,6 @@ export class AppointmentsController {
       req.user.id,
     );
   }
-
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('doctor')
   @Get('doctor')

@@ -78,8 +78,6 @@ export class Appointment {
   @Column({ type: 'varchar', length: 50, nullable: true })
   ivr_status: string;
 
-  // ---------------- TIMESTAMPS ----------------
-
   @CreateDateColumn()
   created_at: Date;
 

@@ -293,7 +293,7 @@ export class AppointmentsService {
     return await this.appointmentRepo.save(appointment);
   }
   async getUserAppointments(userId: number) {
-    return this.appointmentRepo.find({
+    const appointments = await this.appointmentRepo.find({
       where: {
         user: { id: userId },
       },
@@ -302,16 +302,55 @@ export class AppointmentsService {
         appointment_date: 'DESC',
       },
     });
+    const consultingTimes = await this.consultingRepo.find({
+      relations: ['days', 'doctor'],
+    });
+    return appointments.map((appt) => {
+      const dayName = getDayName(appt.appointment_date);
+      const matched = consultingTimes.find(ct =>
+        ct.doctor.id === appt.doctor.id &&
+        ct.days?.some(d => d.day === dayName) &&
+        ct.startTime <= appt.start_time &&
+        ct.endTime >= appt.end_time
+      );
+      return {
+        ...appt,
+        scheduling_type: matched?.scheduling_type || null,
+      };
+    });
   }
   async getDoctorAppointments(doctorId: number) {
-    return this.appointmentRepo.find({
+    const appointments = await this.appointmentRepo.find({
       where: {
         doctor: { id: doctorId },
       },
-      relations: ['user', 'patient'],
+      relations: ['user', 'patient', 'doctor'],
       order: {
         appointment_date: 'DESC',
       },
+    });
+
+    // 🔷 fetch consulting times of this doctor only (optimized)
+    const consultingTimes = await this.consultingRepo.find({
+      where: {
+        doctor: { id: doctorId },
+      },
+      relations: ['days'],
+    });
+
+    return appointments.map((appt) => {
+      const dayName = getDayName(appt.appointment_date);
+      // 🔍 find matching consulting time
+      const matched = consultingTimes.find(ct =>
+        ct.days?.some(d => d.day === dayName) &&
+        ct.startTime <= appt.start_time &&
+        ct.endTime >= appt.end_time
+      );
+
+      return {
+        ...appt,
+        scheduling_type: matched?.scheduling_type || null,
+      };
     });
   }
 }
