@@ -46,6 +46,7 @@ export class Appointment {
   @Column({
     type: 'enum',
     enum: SchedulingType,
+     default: SchedulingType.STREAM
   })
   scheduling_type: SchedulingType;
 

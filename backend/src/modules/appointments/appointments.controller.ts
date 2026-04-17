@@ -41,14 +41,12 @@ export class AppointmentsController {
   @Post()
   book(@Req() req, @Body() dto: CreateAppointmentDto) {
     const userId = req.user.id;
-    // ✅ extracted from token
     console.log("id:", userId)
     return this.appointmentsService.bookSlot({
       ...dto,
       user_id: userId, // 🔐 override user_id
     });
   }
-
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
   @Patch(':id/addpatient')
@@ -95,5 +93,4 @@ export class AppointmentsController {
       body.end_time,
     );
   }
-
 }

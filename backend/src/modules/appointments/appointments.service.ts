@@ -14,37 +14,50 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { Patients } from '../patients/entities/patient.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
 import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
-import { SchedulingType, AppointmentStatus } from '../common/enums/appointment.enum';
+import {
+  SchedulingType,
+  AppointmentStatus,
+} from '../common/enums/appointment.enum';
 import { getDayName } from '../../utils/index';
 
+type StreamSlot = {
+  start: string;
+  end: string;
+  available: boolean;
+};
+
+type WaveSlot = {
+  start: string;
+  end: string;
+  capacity: number;
+  booked: number;
+  available_spots: number;
+  is_full: boolean;
+};
+
+type Slot = StreamSlot | WaveSlot;
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectRepository(Appointment)
-  private readonly appointmentRepo: Repository<Appointment>,
+    private readonly appointmentRepo: Repository<Appointment>,
 
-  @InjectRepository(ConsultingTime)
-  private readonly consultingRepo: Repository<ConsultingTime>,
+    @InjectRepository(ConsultingTime)
+    private readonly consultingRepo: Repository<ConsultingTime>,
 
-  @InjectRepository(CustomAvailability)
-  private readonly customRepo: Repository<CustomAvailability>,
+    @InjectRepository(CustomAvailability)
+    private readonly customRepo: Repository<CustomAvailability>,
 
-  private readonly dataSource: DataSource,
-  ) {}
+    private readonly dataSource: DataSource,
+  ) { }
 
   // ================= BOOK SLOT =================
   async bookSlot(dto: CreateAppointmentDto) {
-    const {
-      doctor_id,
-      appointment_date,
-      start_time,
-      end_time,
-      scheduling_type,
-    } = dto;
+    const { doctor_id, appointment_date, start_time, end_time } = dto;
 
     return this.dataSource.transaction(async (manager) => {
-      const slots = await this.getAvailableSlots(
+      const { scheduling_type, slots } = await this.getAvailableSlots(
         doctor_id,
         appointment_date,
       );
@@ -56,7 +69,7 @@ export class AppointmentsService {
 
       // VALIDATION
       if (isWave) {
-        const wave = slots[0] as any;
+        const wave = slots[0] as WaveSlot;
 
         if (!wave || wave.available_spots <= 0) {
           throw new BadRequestException('Wave is full');
@@ -66,7 +79,7 @@ export class AppointmentsService {
         finalEnd = wave.end;
       } else {
         const slotExists = slots.some(
-          (s: any) =>
+          (s: StreamSlot) =>
             s.start === start_time &&
             s.end === end_time &&
             s.available,
@@ -77,30 +90,42 @@ export class AppointmentsService {
         }
       }
 
-      // DB VALIDATION WITH LOCK
-      const count = await manager
-        .createQueryBuilder(Appointment, 'a')
-        .setLock('pessimistic_write')
-        .where('a.doctor_id = :doctorId', { doctorId: doctor_id })
-        .andWhere('a.appointment_date = :date', {
-          date: appointment_date,
-        })
-        .andWhere('a.start_time = :start', { start: finalStart })
-        .andWhere('a.status = :status', {
-          status: AppointmentStatus.BOOKED,
-        })
-        .getCount();
+      // STREAM LOCK
+      if (!isWave) {
+        const existing = await manager
+          .createQueryBuilder(Appointment, 'a')
+          .setLock('pessimistic_write')
+          .where('a.doctor_id = :doctorId', { doctorId: doctor_id })
+          .andWhere('a.appointment_date = :date', {
+            date: appointment_date,
+          })
+          .andWhere('a.start_time = :start', { start: finalStart })
+          .andWhere('a.status = :status', {
+            status: AppointmentStatus.BOOKED,
+          })
+          .getOne();
 
-      if (scheduling_type === SchedulingType.STREAM && count > 0) {
-        throw new ConflictException('Slot already booked');
+        if (existing) {
+          throw new ConflictException('Slot already booked');
+        }
       }
 
-      if (scheduling_type === SchedulingType.WAVE) {
-        let capacity = 1;
+      // WAVE CAPACITY
+      if (isWave) {
+        const wave = slots[0] as WaveSlot;
+        const capacity = wave?.capacity || 1;
 
-        if (slots.length > 0 && 'capacity' in slots[0]) {
-          capacity = (slots[0] as any).capacity;
-        }
+        const count = await manager
+          .createQueryBuilder(Appointment, 'a')
+          .where('a.doctor_id = :doctorId', { doctorId: doctor_id })
+          .andWhere('a.appointment_date = :date', {
+            date: appointment_date,
+          })
+          .andWhere('a.start_time = :start', { start: finalStart })
+          .andWhere('a.status = :status', {
+            status: AppointmentStatus.BOOKED,
+          })
+          .getCount();
 
         if (count >= capacity) {
           throw new ConflictException('Wave full');
@@ -193,7 +218,7 @@ export class AppointmentsService {
 
     qb.setLock('pessimistic_write');
 
-    const count = await qb.getCount();
+    const count = await qb.getCount(); // ⚠️ still safe here? no → see note below
 
     if (type === SchedulingType.STREAM) return count === 0;
     if (type === SchedulingType.WAVE) return count < capacity;
@@ -220,7 +245,12 @@ export class AppointmentsService {
 
     return this.appointmentRepo.save(appointment);
   }
-  async getAvailableSlots(doctorId: number, date: string) {
+
+  // ================= GET SLOTS =================
+  async getAvailableSlots(
+    doctorId: number,
+    date: string,
+  ): Promise<{ scheduling_type: SchedulingType; slots: Slot[] }> {
     const custom = await this.customRepo.findOne({
       where: {
         doctor: { id: doctorId },
@@ -228,67 +258,87 @@ export class AppointmentsService {
       },
     });
 
-    let start: string;
-    let end: string;
-    let duration: number;
-    let schedulingType: 'STREAM' | 'WAVE';
-    let waveCapacity: number | null = null;
-
     if (custom) {
-      start = custom.startTime;
-      end = custom.endTime;
-      duration = custom.slotDuration;
-      schedulingType = 'STREAM';
-    } else {
-      const dayName = getDayName(date);
-
-      const consulting = await this.consultingRepo.find({
-        where: {
-          doctor: { id: doctorId },
-        },
-        relations: ['days'],
-      });
-
-      const matched = consulting.find(c =>
-        c.days?.some(d => d.day === dayName),
+      const slots = await this.handleStream(
+        custom.startTime,
+        custom.endTime,
+        custom.slotDuration,
+        doctorId,
+        date,
       );
 
-      if (!matched) return [];
-
-      start = matched.startTime;
-      end = matched.endTime;
-      duration = matched.slotDuration;
-
-      schedulingType = matched.scheduling_type;
-      waveCapacity = matched.wave_capacity;
+      return {
+        scheduling_type: SchedulingType.STREAM,
+        slots,
+      };
     }
 
-    if (schedulingType === 'STREAM') {
-      return this.handleStream(start, end, duration, doctorId, date);
+    const dayName = getDayName(date);
+
+    const consultingList = await this.consultingRepo.find({
+      where: { doctor: { id: doctorId } },
+      relations: ['days'],
+    });
+
+    const matchedList = consultingList.filter((c) =>
+      c.days?.some((d) => d.day === dayName),
+    );
+
+    if (matchedList.length === 0) {
+      return {
+        scheduling_type: SchedulingType.STREAM,
+        slots: [],
+      };
     }
 
-    if (schedulingType === 'WAVE') {
-      if (!waveCapacity) {
-        throw new BadRequestException('Wave capacity not defined');
+    const results: Slot[] = [];
+
+    const scheduling_type =
+      matchedList[0].scheduling_type === 'WAVE'
+        ? SchedulingType.WAVE
+        : SchedulingType.STREAM;
+
+    for (const matched of matchedList) {
+      if (scheduling_type === SchedulingType.STREAM) {
+        const slots = await this.handleStream(
+          matched.startTime,
+          matched.endTime,
+          matched.slotDuration,
+          doctorId,
+          date,
+        );
+        results.push(...slots);
       }
-      return this.handleWave(start, end, waveCapacity, doctorId, date);
+
+      if (scheduling_type === SchedulingType.WAVE) {
+        const slots = await this.handleWave(
+          matched.startTime,
+          matched.endTime,
+          matched.wave_capacity,
+          doctorId,
+          date,
+        );
+        results.push(...slots);
+      }
     }
 
-    return [];
+    results.sort((a, b) => a.start.localeCompare(b.start));
+
+    return {
+      scheduling_type,
+      slots: results,
+    };
   }
 
-  // =====================================================
-  // 🔷 STREAM (FIXED SLOTS)
-  // =====================================================
-
+  // ================= STREAM =================
   async handleStream(
     start: string,
     end: string,
     duration: number,
     doctorId: number,
     date: string,
-  ) {
-    let slots = this.generateSlots(start, end, duration);
+  ): Promise<StreamSlot[]> {
+    let slots: { start: string; end: string }[] =this.generateSlots(start, end, duration);
 
     const now = new Date();
     const isToday =
@@ -296,7 +346,7 @@ export class AppointmentsService {
 
     if (isToday) {
       const currentTime = now.toTimeString().slice(0, 5);
-      slots = slots.filter(s => s.start > currentTime);
+      slots = slots.filter((s) => s.start > currentTime);
     }
 
     const bookings = await this.appointmentRepo.find({
@@ -307,35 +357,28 @@ export class AppointmentsService {
       },
     });
 
-    const bookedSet = new Set(bookings.map(b => b.start_time));
+    const bookedSet = new Set(bookings.map((b) => b.start_time));
 
-    return slots.map(slot => ({
+    return slots.map((slot) => ({
       ...slot,
       available: !bookedSet.has(slot.start),
     }));
   }
 
-  // =====================================================
-  // 🔷 WAVE (CAPACITY BASED)
-  // =====================================================
-
+  // ================= WAVE =================
   async handleWave(
     start: string,
     end: string,
     capacity: number,
     doctorId: number,
     date: string,
-  ) {
-    if (!capacity) {
-      throw new BadRequestException('Wave capacity not defined');
-    }
-
+  ): Promise<WaveSlot[]> {
     const bookingsCount = await this.appointmentRepo.count({
       where: {
         doctor: { id: doctorId },
         appointment_date: date,
         start_time: start,
-       status: AppointmentStatus.BOOKED,
+        status: AppointmentStatus.BOOKED,
       },
     });
 
@@ -353,17 +396,13 @@ export class AppointmentsService {
     ];
   }
 
-  // =====================================================
-  // 🔷 SLOT GENERATOR
-  // =====================================================
-
+  // ================= UTIL =================
   generateSlots(
     start: string,
     end: string,
     duration: number,
   ): { start: string; end: string }[] {
-    const slots: { start: string; end: string }[] = [];
-
+   const slots: { start: string; end: string }[] = []; 
     let current = this.toMinutes(start);
     const endMin = this.toMinutes(end);
 
@@ -372,13 +411,11 @@ export class AppointmentsService {
         start: this.toTime(current),
         end: this.toTime(current + duration),
       });
-
       current += duration;
     }
 
     return slots;
   }
-
   toMinutes(time: string) {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
@@ -388,15 +425,12 @@ export class AppointmentsService {
     const h = Math.floor(mins / 60)
       .toString()
       .padStart(2, '0');
-
     const m = (mins % 60)
       .toString()
       .padStart(2, '0');
-
     return `${h}:${m}`;
   }
- 
-  
+
   async getUserAppointments(userId: number) {
     const appointments = await this.appointmentRepo.find({
       where: {
@@ -442,7 +476,6 @@ export class AppointmentsService {
       },
       relations: ['days'],
     });
-
     return appointments.map((appt) => {
       const dayName = getDayName(appt.appointment_date);
       // 🔍 find matching consulting time
@@ -451,7 +484,6 @@ export class AppointmentsService {
         ct.startTime <= appt.start_time &&
         ct.endTime >= appt.end_time
       );
-
       return {
         ...appt,
         scheduling_type: matched?.scheduling_type || null,
