@@ -5,6 +5,10 @@ export class CreateConsultingTimeDto {
   startTime: string; // 
   @IsString()
   endTime: string;
+  
+  
+  
+  @ValidateIf(o => o.scheduling_type === 'STREAM')
   @IsNumber()
   slotDuration: number;
   @IsArray()

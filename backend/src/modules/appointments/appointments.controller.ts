@@ -14,13 +14,15 @@ import {
 
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { ConfirmAppointmentDto } from './dto/confirm-appointment.dto';
+import { HoldNextAppointmentDto } from './dto/hold-next-appointment.dto';
 import { Jwtguard } from '../common/Guard/jwt.guard';
 import { Roles } from '../common/decorator/roles.decorator';
 import { RolesGuard } from '../common/Guard/roles.guard';
 
 @Controller('appointments')
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) { }
+  constructor(private readonly appointmentsService: AppointmentsService) {}
   @Get('slots/:doctorId')
   async getSlots(
     @Param('doctorId', ParseIntPipe) doctorId: number,
@@ -38,10 +40,27 @@ export class AppointmentsController {
   }
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
+  @Post('hold-next')
+  holdNext(@Req() req, @Body() dto: HoldNextAppointmentDto) {
+    return this.appointmentsService.holdNextSlot(dto, req.user.id);
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Post('confirm')
+  confirm(@Req() req, @Body() dto: ConfirmAppointmentDto) {
+    return this.appointmentsService.confirmBooking(
+      dto.appointment_id,
+      req.user.id,
+    );
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
   @Post()
   book(@Req() req, @Body() dto: CreateAppointmentDto) {
     const userId = req.user.id;
-    console.log("id:", userId)
+    console.log('id:', userId);
     return this.appointmentsService.bookSlot({
       ...dto,
       user_id: userId, // 🔐 override user_id
@@ -67,6 +86,13 @@ export class AppointmentsController {
   getDoctorAppointments(@Req() req) {
     return this.appointmentsService.getDoctorAppointments(req.user.id);
   }
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Get('user/all')
+  getAllUserAppointments(@Req() req) {
+    return this.appointmentsService.getUserAppointments(req.user.id);
+  }
+
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
   @Get('my')

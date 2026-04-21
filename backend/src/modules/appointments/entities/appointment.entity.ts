@@ -1,4 +1,3 @@
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -13,7 +12,10 @@ import {
 import { Doctors } from '../../doctors/entity/doctor.entity';
 import { User } from '../../users/entities/user.entity';
 import { Patients } from '../../patients/entities/patient.entity';
-import { SchedulingType, AppointmentStatus } from '../../common/enums/appointment.enum';
+import {
+  SchedulingType,
+  AppointmentStatus,
+} from '../../common/enums/appointment.enum';
 import { ConsultingTime } from '../../consulting-time/entity/consultingTime.entity';
 import { CustomAvailability } from '../../consulting-time/entity/custom_availability.entity';
 @Entity('appointments')
@@ -46,7 +48,7 @@ export class Appointment {
   @Column({
     type: 'enum',
     enum: SchedulingType,
-     default: SchedulingType.STREAM
+    default: SchedulingType.STREAM,
   })
   scheduling_type: SchedulingType;
 
@@ -56,6 +58,9 @@ export class Appointment {
     default: AppointmentStatus.BOOKED,
   })
   status: AppointmentStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  expires_at: Date | null;
 
   @Column({ type: 'int', default: 1 })
   max_capacity: number;
