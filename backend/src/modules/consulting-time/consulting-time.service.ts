@@ -129,6 +129,7 @@ export class ConsultingTimeService {
     return data.map((item) => ({
       startTime: item.startTime,
       endTime: item.endTime,
+      slotDuration: item.slotDuration,
       days: item.days.map((d) => d.day),
       scheduling_type: item.scheduling_type,
       wave_capacity:
@@ -144,6 +145,7 @@ export class ConsultingTimeService {
       return custom.map((c) => ({
         startTime: c.startTime,
         endTime: c.endTime,
+        slotDuration: c.slotDuration,
       }));
     }
     const dayName = new Date(date)
@@ -161,6 +163,7 @@ export class ConsultingTimeService {
     return recurring.map((r) => ({
       startTime: r.startTime,
       endTime: r.endTime,
+      slotDuration: r.slotDuration,
       scheduling_type: r.scheduling_type ?? 'STREAM',
       wave_capacity: r.scheduling_type === 'WAVE' ? r.wave_capacity : null,
     }));

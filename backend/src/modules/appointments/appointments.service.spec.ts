@@ -32,6 +32,8 @@ describe('AppointmentsService', () => {
         { start: '10:00', end: '10:15', available: false },
         { start: '10:15', end: '10:30', available: true },
       ],
+      is_working_day: true,
+      summary: { total_slots: 2, booked_slots: 1, available_slots: 1 },
     });
 
     const result = await service.getSlotsWithNextAvailable(1, '2026-04-22', 3);
@@ -41,6 +43,11 @@ describe('AppointmentsService', () => {
     expect(result.available_slots).toEqual([
       { start: '10:15', end: '10:30', available: true },
     ]);
+    expect(result.summary).toEqual({
+      total_slots: 2,
+      booked_slots: 1,
+      available_slots: 1,
+    });
   });
 
   it('returns next available day when today is full', async () => {
@@ -51,17 +58,23 @@ describe('AppointmentsService', () => {
           return {
             scheduling_type: SchedulingType.STREAM,
             slots: [{ start: '10:00', end: '10:15', available: false }],
+            is_working_day: true,
+            summary: { total_slots: 1, booked_slots: 1, available_slots: 0 },
           };
         }
         if (date === '2026-04-23') {
           return {
             scheduling_type: SchedulingType.STREAM,
             slots: [],
+            is_working_day: false,
+            summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
           };
         }
         return {
           scheduling_type: SchedulingType.STREAM,
           slots: [{ start: '11:00', end: '11:15', available: true }],
+          is_working_day: true,
+          summary: { total_slots: 1, booked_slots: 0, available_slots: 1 },
         };
       });
 
@@ -75,12 +88,19 @@ describe('AppointmentsService', () => {
     expect(result.available_slots).toEqual([
       { start: '11:00', end: '11:15', available: true },
     ]);
+    expect(result.summary).toEqual({
+      total_slots: 1,
+      booked_slots: 0,
+      available_slots: 1,
+    });
   });
 
   it('returns fallback message when no availability in window', async () => {
     jest.spyOn(service, 'getAvailableSlots').mockResolvedValue({
       scheduling_type: SchedulingType.STREAM,
       slots: [{ start: '10:00', end: '10:15', available: false }],
+      is_working_day: true,
+      summary: { total_slots: 1, booked_slots: 1, available_slots: 0 },
     });
 
     const result = await service.getSlotsWithNextAvailable(1, '2026-04-22', 2);
@@ -90,5 +110,10 @@ describe('AppointmentsService', () => {
     expect(result.message).toBe(
       'No appointments available in the next 2 days. Please contact clinic.',
     );
+    expect(result.summary).toEqual({
+      total_slots: 1,
+      booked_slots: 1,
+      available_slots: 0,
+    });
   });
 });

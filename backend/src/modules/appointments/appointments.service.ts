@@ -45,6 +45,12 @@ type WaveSlot = {
 
 type Slot = StreamSlot | WaveSlot;
 
+type SlotSummary = {
+  total_slots: number;
+  booked_slots: number;
+  available_slots: number;
+};
+
 const HOLD_MINUTES = 5;
 const HOLD_SEARCH_DAYS = 30;
 const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 3;
@@ -170,8 +176,25 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
   // ================= HOLD NEXT SLOT =================
   async holdNextSlot(dto: HoldNextAppointmentDto, userId: number) {
     await this.cleanupExpiredReservations();
-    
-    const startDate = dto.appointment_date || this.toDateString(new Date());
+
+    const today = this.toDateString(new Date());
+    const requestedDate = dto.appointment_date || today;
+    const startDate = requestedDate < today ? today : requestedDate;
+
+    const configuredMaxDays = Number(process.env.HOLD_NEXT_MAX_DAYS);
+    const dtoMaxSearchDays = dto.max_search_days;
+    const effectiveMaxDays = Math.max(
+      1,
+      Math.floor(
+        Number.isFinite(dtoMaxSearchDays ?? Number.NaN)
+          ? (dtoMaxSearchDays as number)
+          : Number.isFinite(configuredMaxDays)
+            ? configuredMaxDays
+            : HOLD_SEARCH_DAYS,
+      ),
+    );
+    const searchDays = Math.min(effectiveMaxDays, HOLD_SEARCH_DAYS);
+
     const existing = await this.appointmentRepo.findOne({
   where: {
     user: { id: userId },
@@ -186,7 +209,7 @@ if (existing) {
     'User already has appointment for this day'
   );
 }
-    for (let dayOffset = 0; dayOffset < HOLD_SEARCH_DAYS; dayOffset += 1) {
+    for (let dayOffset = 0; dayOffset < searchDays; dayOffset += 1) {
       const date = this.addDays(startDate, dayOffset);
       const { scheduling_type, slots } = await this.getAvailableSlots(
         dto.doctor_id,
@@ -217,7 +240,9 @@ if (existing) {
       }
     }
 
-    throw new NotFoundException('No available slot found');
+    throw new NotFoundException(
+      `No appointments available in the next ${searchDays} days. Please contact clinic.`,
+    );
   }
 
   private async tryReserveSlot(
@@ -466,7 +491,12 @@ if (existing) {
   async getAvailableSlots(
     doctorId: number,
     date: string,
-  ): Promise<{ scheduling_type: SchedulingType; slots: Slot[] }> {
+  ): Promise<{
+    scheduling_type: SchedulingType;
+    slots: Slot[];
+    is_working_day: boolean;
+    summary: SlotSummary;
+  }> {
     await this.cleanupExpiredReservations();
 
     const custom = await this.customRepo.findOne({
@@ -488,6 +518,8 @@ if (existing) {
       return {
         scheduling_type: SchedulingType.STREAM,
         slots,
+        is_working_day: true,
+        summary: this.summarizeSlots(slots, SchedulingType.STREAM),
       };
     }
 
@@ -506,6 +538,8 @@ if (existing) {
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
+        is_working_day: false,
+        summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
       };
     }
 
@@ -545,6 +579,8 @@ if (existing) {
     return {
       scheduling_type,
       slots: results,
+      is_working_day: true,
+      summary: this.summarizeSlots(results, scheduling_type),
     };
   }
 
@@ -559,6 +595,7 @@ if (existing) {
     scheduling_type: SchedulingType;
     slots: Slot[];
     available_slots: Slot[];
+    summary: SlotSummary;
     message?: string;
   }> {
     const today = this.toDateString(new Date());
@@ -591,6 +628,7 @@ if (existing) {
         scheduling_type: todayResult.scheduling_type,
         slots: todayResult.slots,
         available_slots: todayAvailableSlots,
+        summary: todayResult.summary,
       };
     }
 
@@ -620,6 +658,7 @@ if (existing) {
         scheduling_type: candidate.scheduling_type,
         slots: candidate.slots,
         available_slots: candidateAvailableSlots,
+        summary: candidate.summary,
         message,
       };
     }
@@ -630,6 +669,7 @@ if (existing) {
       scheduling_type: todayResult.scheduling_type,
       slots: todayResult.slots,
       available_slots: [],
+      summary: todayResult.summary,
       message: `No appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
     };
   }
@@ -638,6 +678,28 @@ if (existing) {
     return schedulingType === SchedulingType.WAVE
       ? (slot as WaveSlot).available_spots > 0
       : (slot as StreamSlot).available;
+  }
+
+  private summarizeSlots(slots: Slot[], schedulingType: SchedulingType) {
+    if (schedulingType === SchedulingType.WAVE) {
+      const waves = slots as WaveSlot[];
+      return waves.reduce<SlotSummary>(
+        (acc, w) => ({
+          total_slots: acc.total_slots + (w.capacity ?? 0),
+          booked_slots: acc.booked_slots + (w.booked ?? 0),
+          available_slots: acc.available_slots + (w.available_spots ?? 0),
+        }),
+        { total_slots: 0, booked_slots: 0, available_slots: 0 },
+      );
+    }
+
+    const stream = slots as StreamSlot[];
+    const availableSlots = stream.filter((s) => s.available).length;
+    return {
+      total_slots: stream.length,
+      booked_slots: stream.length - availableSlots,
+      available_slots: availableSlots,
+    };
   }
 
   // ================= STREAM =================

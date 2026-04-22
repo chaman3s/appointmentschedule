@@ -1,7 +1,9 @@
 import {
   IsBoolean,
   IsDateString,
+  IsInt,
   IsNotEmpty,
+  Min,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -13,6 +15,11 @@ export class HoldNextAppointmentDto {
   @IsOptional()
   @IsDateString()
   appointment_date?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  max_search_days?: number;
 
   @IsString()
   consulting_type: string;

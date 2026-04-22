@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
-import {}
 describe('AppointmentsController', () => {
   let controller: AppointmentsController;
 

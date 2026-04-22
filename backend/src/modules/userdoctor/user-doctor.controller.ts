@@ -12,6 +12,11 @@ import { ConsultingTimeService } from '../consulting-time/consulting-time.servic
 export class UserDoctorController {
   constructor(private readonly service: ConsultingTimeService) {}
 
+  @Get(':doctorId/schedule')
+  getDoctorSchedule(@Param('doctorId', ParseIntPipe) doctorId: number) {
+    return this.service.getDoctorSchedule(doctorId);
+  }
+
   @Get(':doctorId/availability')
   getDoctorAvailability(
     @Param('doctorId', ParseIntPipe) doctorId: number,
