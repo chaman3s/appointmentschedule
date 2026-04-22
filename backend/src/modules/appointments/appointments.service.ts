@@ -47,6 +47,7 @@ type Slot = StreamSlot | WaveSlot;
 
 const HOLD_MINUTES = 5;
 const HOLD_SEARCH_DAYS = 30;
+const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 3;
 
 @Injectable()
 export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
@@ -545,6 +546,98 @@ if (existing) {
       scheduling_type,
       slots: results,
     };
+  }
+
+  // ================= NEXT AVAILABLE SLOTS =================
+  async getSlotsWithNextAvailable(
+    doctorId: number,
+    date?: string,
+    maxDays?: number,
+  ): Promise<{
+    requested_date: string;
+    date: string;
+    scheduling_type: SchedulingType;
+    slots: Slot[];
+    available_slots: Slot[];
+    message?: string;
+  }> {
+    const today = this.toDateString(new Date());
+    const requestedDate = date ?? today;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    const parsedMaxDays =
+      maxDays ??
+      Number(process.env.NEXT_AVAILABLE_MAX_DAYS) ??
+      NEXT_AVAILABILITY_DEFAULT_MAX_DAYS;
+
+    const effectiveMaxDays = Number.isFinite(parsedMaxDays)
+      ? Math.max(0, Math.floor(parsedMaxDays))
+      : NEXT_AVAILABILITY_DEFAULT_MAX_DAYS;
+
+    const startDate = requestedDate < today ? today : requestedDate;
+
+    const todayResult = await this.getAvailableSlots(doctorId, startDate);
+    const todayAvailableSlots = todayResult.slots.filter((slot) =>
+      this.slotHasAvailability(slot, todayResult.scheduling_type),
+    );
+
+    if (todayAvailableSlots.length > 0) {
+      return {
+        requested_date: requestedDate,
+        date: startDate,
+        scheduling_type: todayResult.scheduling_type,
+        slots: todayResult.slots,
+        available_slots: todayAvailableSlots,
+      };
+    }
+
+    for (
+      let dayOffset = 1;
+      dayOffset <= effectiveMaxDays;
+      dayOffset += 1
+    ) {
+      const candidateDate = this.addDays(startDate, dayOffset);
+      const candidate = await this.getAvailableSlots(doctorId, candidateDate);
+      const candidateAvailableSlots = candidate.slots.filter((slot) =>
+        this.slotHasAvailability(slot, candidate.scheduling_type),
+      );
+
+      if (candidateAvailableSlots.length === 0) {
+        continue;
+      }
+
+      const isToday = startDate === today;
+      const message = isToday
+        ? `No appointments available today. Next available appointment is on ${candidateDate}.`
+        : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
+
+      return {
+        requested_date: requestedDate,
+        date: candidateDate,
+        scheduling_type: candidate.scheduling_type,
+        slots: candidate.slots,
+        available_slots: candidateAvailableSlots,
+        message,
+      };
+    }
+
+    return {
+      requested_date: requestedDate,
+      date: startDate,
+      scheduling_type: todayResult.scheduling_type,
+      slots: todayResult.slots,
+      available_slots: [],
+      message: `No appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
+    };
+  }
+
+  private slotHasAvailability(slot: Slot, schedulingType: SchedulingType) {
+    return schedulingType === SchedulingType.WAVE
+      ? (slot as WaveSlot).available_spots > 0
+      : (slot as StreamSlot).available;
   }
 
   // ================= STREAM =================

@@ -38,6 +38,32 @@ export class AppointmentsController {
 
     return this.appointmentsService.getAvailableSlots(doctorId, date);
   }
+
+  @Get('slots/next/:doctorId')
+  async getSlotsWithNextAvailable(
+    @Param('doctorId', ParseIntPipe) doctorId: number,
+    @Query('date') date?: string,
+    @Query('maxDays') maxDays?: string,
+  ) {
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new BadRequestException('Invalid date format');
+    }
+
+    const parsedMaxDays =
+      maxDays === undefined || maxDays === ''
+        ? undefined
+        : Number.parseInt(maxDays, 10);
+
+    if (parsedMaxDays !== undefined && !Number.isFinite(parsedMaxDays)) {
+      throw new BadRequestException('maxDays must be a number');
+    }
+
+    return this.appointmentsService.getSlotsWithNextAvailable(
+      doctorId,
+      date,
+      parsedMaxDays,
+    );
+  }
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
   @Post('bookNext')
