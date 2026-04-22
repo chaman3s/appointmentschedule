@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../users/user.service';
 import { DoctorServices } from '../doctors/doctor.service';
-
+import { SignupDto } from './DTO/doctorAuth';
 @Injectable()
 export class AuthServices {
   constructor(
@@ -76,7 +76,7 @@ export class AuthServices {
   }
 
   // ✅ DOCTOR SIGNUP
-  async signupDoctor(data: any) {
+  async signupDoctor(data:SignupDto) {
     const response = await this.doctorService.createDoctor(data);
 
     // 🔥 FIX: safe check

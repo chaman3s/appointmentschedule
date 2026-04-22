@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UpdateProfileDoctorDto } from './dto/updateprofile.doctor.dto';
+import { SignupDto } from '../auth/DTO/doctorAuth';
 
 @Injectable()
 export class DoctorServices {
@@ -37,11 +38,11 @@ export class DoctorServices {
       doctor: result,
     };
   }
-  async createDoctor(data: any) {
+  async createDoctor(data:SignupDto) {
+
     const {
       name,
       mobileNumber,
-      email,
       password,
     } = data;
 
@@ -61,7 +62,6 @@ export class DoctorServices {
     const newDoctor = this.doctorsRepo.create({
       name,
       mobileNumber,
-      email,
       password: hashedPassword,
     });
     await this.doctorsRepo.save(newDoctor);

@@ -13,7 +13,7 @@ export class Doctors {
   @Column({ unique: true, length: 15 })
   mobileNumber: string;
 
-  @Column({ unique: true })
+  @Column({ unique: true,nullable:true })
   email: string;
 
   @Column({ select: false })

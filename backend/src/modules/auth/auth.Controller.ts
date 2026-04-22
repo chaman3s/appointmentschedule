@@ -1,5 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthServices } from './auth.service';
+import {SignupDto} from './DTO/doctorAuth';
 
 @Controller('auth')
 export class AuthController {
@@ -27,7 +28,7 @@ export class AuthController {
 
   // ✅ DOCTOR SIGNUP
   @Post('signup/doctor')
-signupDoctor(@Body() body: any) {
+signupDoctor(@Body() body:SignupDto) {
   if (!body) {
     return { message: 'Body is missing' };
   }
