@@ -169,9 +169,22 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
   // ================= HOLD NEXT SLOT =================
   async holdNextSlot(dto: HoldNextAppointmentDto, userId: number) {
     await this.cleanupExpiredReservations();
-
+    
     const startDate = dto.appointment_date || this.toDateString(new Date());
+    const existing = await this.appointmentRepo.findOne({
+  where: {
+    user: { id: userId },
+    doctor: { id: dto.doctor_id },
+    appointment_date: startDate,
+    status: AppointmentStatus.BOOKED
+  }
+});
 
+if (existing) {
+  throw new ConflictException(
+    'User already has appointment for this day'
+  );
+}
     for (let dayOffset = 0; dayOffset < HOLD_SEARCH_DAYS; dayOffset += 1) {
       const date = this.addDays(startDate, dayOffset);
       const { scheduling_type, slots } = await this.getAvailableSlots(
