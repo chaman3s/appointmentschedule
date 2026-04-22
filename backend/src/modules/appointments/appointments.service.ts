@@ -258,7 +258,7 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
         .leftJoinAndSelect('a.user', 'appointmentUser')
         .leftJoinAndSelect('a.doctor', 'doctor')
         .leftJoinAndSelect('a.patient', 'patient')
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['a'])
         .where('a.appointment_id = :appointmentId', { appointmentId })
         .getOne();
 

@@ -40,14 +40,14 @@ export class AppointmentsController {
   }
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
-  @Post('hold-next')
+  @Post('bookNext')
   holdNext(@Req() req, @Body() dto: HoldNextAppointmentDto) {
     return this.appointmentsService.holdNextSlot(dto, req.user.id);
   }
 
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('user')
-  @Post('confirm')
+  @Post('confirmNextBook')
   confirm(@Req() req, @Body() dto: ConfirmAppointmentDto) {
     return this.appointmentsService.confirmBooking(
       dto.appointment_id,
