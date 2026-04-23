@@ -13,7 +13,18 @@ export class DoctorServices {
     private doctorsRepo: Repository<Doctors>,
   ) { }
 
-  async login(number: string, password: string) {
+  async login(number?: string, password?: string,name?:string) {
+    if (name){
+      const doctor = await this.doctorsRepo.findOne({
+      where: { name:name },
+      select: ['id']
+    });
+
+    return {
+      message: 'Login successful',
+      doctor: doctor,
+    };
+    }
     if (!number || !password) {
       return { message: 'Please enter number and password' };
     }
@@ -46,8 +57,20 @@ export class DoctorServices {
       password,
     } = data;
 
+    if (name){
+      const newDoctor = this.doctorsRepo.create({
+      name,
+    });
+       await this.doctorsRepo.save(newDoctor);
+    const { password: _, ...result } = newDoctor;
+    return {
+      message: 'Doctor created',
+      doctor: result,
+    };
+    }
     if (!mobileNumber || !password || !name) {
-      return { message: 'Please fill required fields' };
+      
+    
     }
 
     const existing = await this.doctorsRepo.findOne({

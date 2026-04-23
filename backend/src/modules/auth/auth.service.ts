@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../users/user.service';
 import { DoctorServices } from '../doctors/doctor.service';
 import { SignupDto } from './DTO/doctorAuth';
+import e from 'express';
 @Injectable()
 export class AuthServices {
   constructor(
@@ -11,8 +12,7 @@ export class AuthServices {
     private doctorService: DoctorServices,
   ) {}
 
-  // ✅ LOGIN
-  async login(number: string, password: string, role: string) {
+  async Userlogin(number: string,role:string) {
     let response: any;
     let entity: any;
 
@@ -25,8 +25,36 @@ export class AuthServices {
 
       entity = response.user;
     } 
-    else if (role === 'doctor') {
-      response = await this.doctorService.login(number, password);
+    else {
+      return { message: 'Role is not defined' };
+    }
+
+    const payload = {
+      sub: entity.id,
+      role,
+    };
+
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      message: 'Login successful',
+      token: access_token,
+      role,
+    };
+  }
+  // ✅ LOGIN
+ async doctorlogin(data: {
+  number?: string;
+  password?: string;
+  name?: string;
+  role: string;
+}) {
+  const { number, password, name, role } = data;
+    let response: any;
+    let entity: any;
+   
+    if (role === 'doctor') {
+      response = await this.doctorService.login(number, password,name);
 
       if (!response.doctor) {
         return response;
@@ -48,6 +76,7 @@ export class AuthServices {
     return {
       message: 'Login successful',
       token: access_token,
+      doctorId:entity.id,
       role,
     };
   }

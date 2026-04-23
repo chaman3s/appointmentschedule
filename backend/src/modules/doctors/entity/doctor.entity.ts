@@ -7,16 +7,16 @@ export class Doctors {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({nullable: true})
   name: string;
 
-  @Column({ unique: true, length: 15 })
+  @Column({ unique: true, length: 15,nullable: true})
   mobileNumber: string;
 
   @Column({ unique: true,nullable:true })
   email: string;
 
-  @Column({ select: false })
+  @Column({ select: false ,nullable: true})
   password: string;
   @Column({ default: false })
   isProfileCompleted: boolean;

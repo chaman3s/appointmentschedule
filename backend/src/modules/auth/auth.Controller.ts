@@ -10,14 +10,28 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() body: {
-      number: string;
-      password: string;
+      number?: string;
+      password?: string;
+      name?:string;
       role: string;
     },
   ) {
-    const { number, password, role } = body;
+   const { number, password, name, role } = body;
+     if (role === 'user') {
+       if (!number) {
+    return { message: 'Number is required for user login' };
+  }
+  return this.authService.Userlogin(number, role);
+     }
+     else{
 
-    return this.authService.login(number, password, role);
+      return this.authService.doctorlogin({
+  number,
+  password,
+  name,
+  role,
+});
+     }
   }
 
   // ✅ USER SIGNUP
