@@ -86,311 +86,442 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ================= BOOK SLOT =================
-async bookSlot(dto: CreateAppointmentDto) {
-  const { doctor_id } = dto;
+async findBestAvailableSlot(
+  doctorId: number,
+  requestedDate: string,
+  requestedStart?: string,
+  requestedEnd?: string,
+) {
 
-  return this.dataSource.transaction(async (manager) => {
+  const today =
+    await this.getAvailableSlots(
+      doctorId,
+      requestedDate,
+    );
 
-    let bookingDate = dto.appointment_date;
+  const isWave =
+    today.scheduling_type ===
+    SchedulingType.WAVE;
 
-    let finalStart = dto.start_time || null;
-    let finalEnd = dto.end_time || null;
+  // ---------------------------------
+  // exact requested slot
+  // ---------------------------------
 
-    let selectedSlot:
-      { date:string; start:string; end:string }
-      | null = null;
+  if (
+    requestedStart &&
+    requestedEnd &&
+    !isWave
+  ) {
 
-    // ---------------------------------------
-    // STEP 1
-    // check requested day
-    // ---------------------------------------
-
-    const current =
-      await this.getAvailableSlots(
-        doctor_id,
-        bookingDate,
+    const exact =
+      (today.slots as StreamSlot[])
+      .find(
+        s =>
+          s.start === requestedStart &&
+          s.end === requestedEnd &&
+          s.available,
       );
 
-    const isWave =
-      current.scheduling_type ===
-      SchedulingType.WAVE;
+    if (exact) {
+      return {
+        date: requestedDate,
+        start: exact.start,
+        end: exact.end,
+      };
+    }
+  }
 
-    // ---------------------------------------
-    // STEP 2
-    // requested slot available?
-    // ---------------------------------------
+  if (isWave) {
 
-    if (finalStart && finalEnd) {
+    const wave =
+      today.slots[0] as WaveSlot;
 
-      if (!isWave) {
+    if (
+      wave &&
+      wave.available_spots > 0
+    ) {
 
-        const exactSlot =
-          (current.slots as StreamSlot[])
-          .find(
-            s =>
-              s.start === finalStart &&
-              s.end === finalEnd &&
-              s.available,
-          );
+      return {
+        date: requestedDate,
+        start: wave.start,
+        end: wave.end,
+      };
+    }
+  }
 
-        if (exactSlot) {
-          selectedSlot = {
-            date: bookingDate,
-            start: exactSlot.start,
-            end: exactSlot.end,
-          };
-        }
+  // ---------------------------------
+  // same day different time
+  // ---------------------------------
+
+  if (!isWave) {
+
+    const sameDayOther =
+      (today.slots as StreamSlot[])
+      .find(
+        s => s.available,
+      );
+
+    if (sameDayOther) {
+
+      return {
+        date: requestedDate,
+        start:
+          sameDayOther.start,
+        end:
+          sameDayOther.end,
+      };
+    }
+  }
+
+  // ---------------------------------
+  // future days
+  // ---------------------------------
+
+  const next =
+    await this.getSlotsWithNextAvailable(
+      doctorId,
+      requestedDate,
+      3,
+    );
+
+  if (
+    !next ||
+    !next.available_slots.length
+  ) {
+    throw new BadRequestException(
+      'No future slots available',
+    );
+  }
+
+  // prefer same time on future day
+  if (
+    requestedStart &&
+    requestedEnd
+  ) {
+
+    const sameTimeFuture =
+      next.available_slots.find(
+        s =>
+          s.start === requestedStart &&
+          s.end === requestedEnd,
+      );
+
+    if (sameTimeFuture) {
+
+      return {
+        date: next.date,
+        start:
+          sameTimeFuture.start,
+        end:
+          sameTimeFuture.end,
+      };
+    }
+  }
+
+  // fallback first available
+
+  const first =
+    next.available_slots[0];
+
+  return {
+    date: next.date,
+    start: first.start,
+    end: first.end,
+  };
+}
+
+
+
+async bookSlot(
+ dto: CreateAppointmentDto
+) {
+  
+
+ return this.dataSource.transaction(
+  async (manager) => {
+
+   const {
+    doctor_id,
+    appointment_date,
+    start_time,
+    end_time
+   } = dto;
+   const existingSameDay =
+    await this.appointmentRepo.findOne({
+      where:{
+        user:{ id:dto.user_id },
+        doctor:{ id:doctor_id },
+        appointment_date,
+        status: AppointmentStatus.BOOKED
       }
+    });
+     if (existingSameDay) {
+    throw new ConflictException(
+      'you already book appointment for today'
+    );
+   }
+   // --------------------------
+   // check requested date
+   // --------------------------
 
-      if (isWave) {
+   const current =
+    await this.getAvailableSlots(
+      doctor_id,
+      appointment_date,
+    );
 
-        const wave =
-          current.slots[0] as WaveSlot;
+   const isWave =
+    current.scheduling_type ===
+    SchedulingType.WAVE;
 
-        if (
-          wave &&
-          wave.available_spots > 0
-        ) {
-          selectedSlot = {
-            date: bookingDate,
-            start: wave.start,
-            end: wave.end,
-          };
-        }
-      }
+   let requestedAvailable=false;
+
+   // --------------------------
+   // exact requested slot?
+   // --------------------------
+
+   if (!isWave) {
+
+    requestedAvailable =
+      (current.slots as StreamSlot[])
+      .some(
+        s =>
+         s.start===start_time &&
+         s.end===end_time &&
+         s.available
+      );
+   }
+
+   if (isWave) {
+
+    const wave = current.slots[0] as WaveSlot;
+
+    requestedAvailable =
+      wave.available_spots > 0;
+   }
+
+   // --------------------------
+   // if unavailable:
+   // return next slot only
+   // DO NOT BOOK
+   // --------------------------
+
+  if (!requestedAvailable) {
+
+  // -------------------------
+  // 1. Same day other slot
+  // -------------------------
+
+  if (!isWave) {
+
+    const sameDayNext =
+      (current.slots as StreamSlot[])
+      .find(
+        s =>
+          s.start !== start_time &&
+          s.available
+      );
+
+    if (sameDayNext) {
+
+      return {
+        booked:false,
+        message:'Requested slot unavailable',
+
+        next_available_date:
+          appointment_date,
+
+        next_available_start:
+          sameDayNext.start,
+
+        next_available_end:
+          sameDayNext.end
+      };
+    }
+  }
+
+  // -------------------------
+  // 2. Future days (1..3)
+  // -------------------------
+
+  for (
+    let i = 1;
+    i <= 3;
+    i++
+  ) {
+
+    const futureDate =
+      this.addDays(
+        appointment_date,
+        i
+      );
+
+    const future =
+      await this.getAvailableSlots(
+        doctor_id,
+        futureDate,
+      );
+
+    if (
+      !future.slots.length
+    ) {
+      continue;
     }
 
-    // ---------------------------------------
-    // STEP 3
-    // no exact slot found:
-    // same day other time first
-    // ---------------------------------------
+    // try same time first
+    if (
+      start_time &&
+      end_time &&
+      future.scheduling_type
+       === SchedulingType.STREAM
+    ) {
 
-    if (!selectedSlot) {
+      const sameTime =
+       (future.slots as StreamSlot[])
+       .find(
+        s =>
+         s.start===start_time &&
+         s.end===end_time &&
+         s.available
+       );
 
-      if (!isWave) {
+      if (sameTime) {
 
-        const sameDayNext =
-          (current.slots as StreamSlot[])
-          .find(
-            s => s.available,
-          );
+        return {
+          booked:false,
 
-        if (sameDayNext) {
+          next_available_date:
+            futureDate,
 
-          selectedSlot = {
-            date: bookingDate,
-            start: sameDayNext.start,
-            end: sameDayNext.end,
-          };
-        }
-      }
+          next_available_start:
+            sameTime.start,
 
-      if (
-        !selectedSlot &&
-        isWave
-      ) {
-
-        const wave =
-          current.slots[0] as WaveSlot;
-
-        if (
-          wave &&
-          wave.available_spots > 0
-        ) {
-
-          selectedSlot = {
-            date: bookingDate,
-            start: wave.start,
-            end: wave.end,
-          };
-        }
-      }
-    }
-
-    // ---------------------------------------
-    // STEP 4
-    // search future days
-    // same or different time
-    // ---------------------------------------
-
-    if (!selectedSlot) {
-
-      const next =
-        await this.getSlotsWithNextAvailable(
-          doctor_id,
-          bookingDate,
-          30,
-        );
-
-      if (
-        !next ||
-        !next.available_slots.length
-      ) {
-        throw new BadRequestException(
-          'No future slots available',
-        );
-      }
-
-      // Prefer same requested time
-      if (finalStart && finalEnd) {
-
-        const matchingTime =
-          next.available_slots.find(
-            s =>
-              s.start === finalStart &&
-              s.end === finalEnd,
-          );
-
-        if (matchingTime) {
-
-          selectedSlot = {
-            date: next.date,
-            start:
-              matchingTime.start,
-            end:
-              matchingTime.end,
-          };
-        }
-      }
-
-      // otherwise first available
-      if (!selectedSlot) {
-
-        const first =
-          next.available_slots[0];
-
-        selectedSlot = {
-          date: next.date,
-          start: first.start,
-          end: first.end,
+          next_available_end:
+            sameTime.end
         };
       }
     }
 
-    // ---------------------------------------
-    // STEP 5
-    // use final slot
-    // ---------------------------------------
-
-    bookingDate =
-      selectedSlot.date;
-
-    finalStart =
-      selectedSlot.start;
-
-    finalEnd =
-      selectedSlot.end;
-
-    // ---------------------------------------
-    // STEP 6
-    // concurrency
-    // ---------------------------------------
-
-    const occupied =
-      await this.getOccupiedSlotCount(
-        manager,
-        doctor_id,
-        bookingDate,
-        finalStart,
-        undefined,
-        true,
+    // fallback first available
+    const firstAvailable =
+      future.slots.find(
+        s =>
+          future.scheduling_type
+          === SchedulingType.WAVE
+            ? (s as WaveSlot)
+               .available_spots > 0
+            : (s as StreamSlot)
+               .available
       );
 
-    if (!isWave && occupied > 0) {
-      throw new ConflictException(
-        'Slot already booked',
-      );
+    if (firstAvailable) {
+
+      return {
+        booked:false,
+        message:`No appointments available today. Next available appointment is on ${futureDate} at ${firstAvailable.start}`,
+        next_available_date:
+          futureDate,
+
+        next_available_start:
+          firstAvailable.start,
+
+        next_available_end:
+          firstAvailable.end
+      };
     }
+  }
 
-    if (isWave) {
-
-      const finalDay =
-        await this.getAvailableSlots(
-          doctor_id,
-          bookingDate,
-        );
-
-      const wave =
-        finalDay.slots[0] as WaveSlot;
-
-      if (
-        occupied >= wave.capacity
-      ) {
-        throw new ConflictException(
-          'Wave full',
-        );
-      }
-    }
-
-    // ---------------------------------------
-    // STEP 7
-    // save
-    // ---------------------------------------
-
-    const appointment =
-      await manager.save(
-        manager.create(
-          Appointment,
-          {
-            ...dto,
-
-            appointment_date:
-              bookingDate,
-
-            start_time:
-              finalStart,
-
-            end_time:
-              finalEnd,
-
-            doctor:{
-              id:doctor_id
-            },
-
-            user:{
-              id:dto.user_id
-            },
-
-            patient: dto.patient_id
-              ? ({
-                  patient_id:
-                  dto.patient_id
-                } as Patients)
-              : undefined,
-
-            status:
-              AppointmentStatus.BOOKED,
-
-            expires_at:null,
-          },
-        ),
-      );
-
-    // ---------------------------------------
-    // STEP 8
-    // return actual booked slot
-    // ---------------------------------------
-
-    return {
-      message:
-       'Appointment booked',
-
-      booked_date:
-       bookingDate,
-
-      booked_start_time:
-       finalStart,
-
-      booked_end_time:
-       finalEnd,
-
-      appointment,
-    };
-
-  });
+  throw new BadRequestException(
+    'No future slots available'
+  );
 }
 
+   // --------------------------
+   // requested slot available
+   // book it
+   // --------------------------
+
+   const occupied =
+    await this.getOccupiedSlotCount(
+      manager,
+      doctor_id,
+      appointment_date,
+      start_time,
+      undefined,
+      true,
+    );
+
+   if (!isWave && occupied>0) {
+     throw new ConflictException(
+      'Slot already booked'
+     );
+   }
+
+   if (isWave) {
+
+    const wave =
+      current.slots[0] as WaveSlot;
+
+    if (
+      occupied >=
+      wave.capacity
+    ) {
+      throw new ConflictException(
+       'Wave full'
+      );
+    }
+   }
+
+   const appointment =
+    await manager.save(
+      manager.create(
+        Appointment,
+        {
+          ...dto,
+
+          doctor:{
+            id:doctor_id
+          },
+
+          user:{
+            id:dto.user_id
+          },
+
+          patient:
+            dto.patient_id
+            ? ({
+                patient_id:
+                dto.patient_id
+              } as Patients)
+            : undefined,
+
+          status:
+            AppointmentStatus.BOOKED,
+
+          expires_at:null,
+        }
+      )
+    );
+
+   return {
+
+     booked:true,
+
+     booked_date:
+       appointment_date,
+
+     booked_start:
+       start_time,
+
+     booked_end:
+       end_time,
+
+     appointment
+   };
+
+  }
+ );
+}
   // ================= HOLD NEXT SLOT =================
   async holdNextSlot(dto: HoldNextAppointmentDto, userId: number) {
     await this.cleanupExpiredReservations();

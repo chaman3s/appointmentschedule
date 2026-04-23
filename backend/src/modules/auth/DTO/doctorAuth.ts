@@ -1,11 +1,9 @@
 import { IsString, Length, Matches, IsOptional } from 'class-validator';
 
 export class SignupDto {
-  @IsOptional()
   @IsString()
   @Matches(/^(\+?\d{8,15})$/)
-  mobileNumber?: string;
-
+  mobileNumber: string;
   @IsString()
   @Length(2, 50)
   name: string;
@@ -13,5 +11,5 @@ export class SignupDto {
   @IsOptional()
   @IsString()
   @Length(6, 20)
-  password?: string;
+  password: string;
 }

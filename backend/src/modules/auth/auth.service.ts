@@ -44,17 +44,16 @@ export class AuthServices {
   }
   // ✅ LOGIN
  async doctorlogin(data: {
-  number?: string;
-  password?: string;
-  name?: string;
+  number: string;
+  password: string;
   role: string;
 }) {
-  const { number, password, name, role } = data;
+  const { number, password, role } = data;
     let response: any;
     let entity: any;
    
     if (role === 'doctor') {
-      response = await this.doctorService.login(number, password,name);
+      response = await this.doctorService.login(number, password);
 
       if (!response.doctor) {
         return response;
