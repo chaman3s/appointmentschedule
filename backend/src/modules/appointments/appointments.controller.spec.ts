@@ -17,3 +17,8 @@ describe('AppointmentsController', () => {
     expect(controller).toBeDefined();
   });
 });
+
+ 
+ describe('DTO Validation', () => {
+  
+ })

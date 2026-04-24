@@ -21,6 +21,7 @@ export class CreateAppointmentDto {
   user_id: number;
 
   @IsDateString()
+  
   appointment_date: string;
 
   // HH:mm format

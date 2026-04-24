@@ -229,23 +229,26 @@ async findBestAvailableSlot(
     end: first.end,
   };
 }
-
-
-
 async bookSlot(
  dto: CreateAppointmentDto
 ) {
-  
 
  return this.dataSource.transaction(
   async (manager) => {
-
    const {
     doctor_id,
     appointment_date,
     start_time,
     end_time
    } = dto;
+  const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
+const now = new Date();
+
+if (appointmentDateTime < now) {
+  throw new BadRequestException(
+    'Cannot book appointment in the past'
+  );
+}
    const existingSameDay =
     await this.appointmentRepo.findOne({
       where:{
@@ -260,28 +263,16 @@ async bookSlot(
       'you already book appointment for today'
     );
    }
-   // --------------------------
-   // check requested date
-   // --------------------------
-
    const current =
     await this.getAvailableSlots(
       doctor_id,
       appointment_date,
     );
-
    const isWave =
     current.scheduling_type ===
     SchedulingType.WAVE;
-
    let requestedAvailable=false;
-
-   // --------------------------
-   // exact requested slot?
-   // --------------------------
-
    if (!isWave) {
-
     requestedAvailable =
       (current.slots as StreamSlot[])
       .some(
@@ -291,29 +282,13 @@ async bookSlot(
          s.available
       );
    }
-
    if (isWave) {
-
     const wave = current.slots[0] as WaveSlot;
-
     requestedAvailable =
       wave.available_spots > 0;
    }
-
-   // --------------------------
-   // if unavailable:
-   // return next slot only
-   // DO NOT BOOK
-   // --------------------------
-
-  if (!requestedAvailable) {
-
-  // -------------------------
-  // 1. Same day other slot
-  // -------------------------
-
+if (!requestedAvailable) {
   if (!isWave) {
-
     const sameDayNext =
       (current.slots as StreamSlot[])
       .find(
@@ -321,9 +296,7 @@ async bookSlot(
           s.start !== start_time &&
           s.available
       );
-
     if (sameDayNext) {
-
       return {
         booked:false,
         message:'Requested slot unavailable',
@@ -432,15 +405,9 @@ async bookSlot(
   }
 
   throw new BadRequestException(
-    'No future slots available'
+    'No appointments available in the next 3 days. Please contact clinic.'
   );
 }
-
-   // --------------------------
-   // requested slot available
-   // book it
-   // --------------------------
-
    const occupied =
     await this.getOccupiedSlotCount(
       manager,
@@ -456,12 +423,9 @@ async bookSlot(
       'Slot already booked'
      );
    }
-
    if (isWave) {
-
     const wave =
       current.slots[0] as WaveSlot;
-
     if (
       occupied >=
       wave.capacity
@@ -471,22 +435,18 @@ async bookSlot(
       );
     }
    }
-
    const appointment =
     await manager.save(
       manager.create(
         Appointment,
         {
           ...dto,
-
           doctor:{
             id:doctor_id
           },
-
           user:{
             id:dto.user_id
           },
-
           patient:
             dto.patient_id
             ? ({
@@ -494,28 +454,20 @@ async bookSlot(
                 dto.patient_id
               } as Patients)
             : undefined,
-
           status:
             AppointmentStatus.BOOKED,
-
           expires_at:null,
         }
       )
     );
-
    return {
-
      booked:true,
-
      booked_date:
        appointment_date,
-
      booked_start:
        start_time,
-
      booked_end:
        end_time,
-
      appointment
    };
 
