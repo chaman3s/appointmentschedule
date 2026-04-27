@@ -410,6 +410,8 @@ if (!requestedAvailable) {
       );
     }
    }
+   const tokenno= await this.getTokenNummber(doctor_id)
+   const reportingTime = await this.getRepporting(doctor_id,start_time)
    const appointment =
     await manager.save(
       manager.create(
@@ -419,6 +421,8 @@ if (!requestedAvailable) {
           doctor:{
             id:doctor_id
           },
+          tokenNo:tokenno,
+          reportTime:reportingTime,
           user:{
             id:dto.user_id
           },
@@ -438,9 +442,9 @@ if (!requestedAvailable) {
 
    return {
      booked:true,
-     TokenNo:await this.getonkeNummber(doctor_id),
+     TokenNo:tokenno,
      appointmentId:appointment.appointment_id,
-     reportingTime: this.getRepporting(doctor_id,start_time),
+     reportingTime: reportingTime,
      booked_date:appointment_date,
      booked_start:start_time,
      booked_end: end_time,
@@ -464,7 +468,7 @@ const reportBefore = doctor?.reportBefore;
   return date.toTimeString().slice(0,5);
 
 }
-async getonkeNummber(doctorId:number){
+async getTokenNummber(doctorId:number){
   const lastAppointment = await this.appointmentRepo.findOne({
   where: {
     doctor: { id: doctorId }
