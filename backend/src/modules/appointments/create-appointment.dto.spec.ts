@@ -13,6 +13,7 @@ describe('CreateAppointmentDto Validation', () => {
    dto.scheduling_type = SchedulingType.WAVE; // use valid enum value
    return dto;
  };
+// missing 
  it('should pass with valid dto', async () => {
    const dto = validDto();
    const errors = await validate(dto);
@@ -25,9 +26,113 @@ describe('CreateAppointmentDto Validation', () => {
    expect(errors.length).toBeGreaterThan(0);
  });
 
+  it('should fail when appointment_date missing', async () => {
+   const dto = validDto();
+   delete (dto as any).appointment_date
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+   it('should fail when end_time missing', async () => {
+   const dto = validDto();
+   delete (dto as any).end_time
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+
+  it('should fail when start_time missing', async () => {
+   const dto = validDto();
+   delete (dto as any).start_time
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+   it('should fail when consulting_type  missing', async () => {
+   const dto = validDto();
+   delete (dto as any).consulting_type 
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+  it('should fail when scheduling_type  missing', async () => {
+   const dto = validDto();
+   delete (dto as any).scheduling_type
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ // type checking
  it('should fail when appointment_date invalid', async () => {
    const dto = validDto();
-   dto.appointment_date = '25-04-2026';
+   dto.appointment_date = 25-10-2025;
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+// foramate checking
+ it('should fail when appointment_date invalid', async () => {
+   const dto = validDto();
+   dto.appointment_date = "25-10-2025";
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ it('should fail when appointment_date invalid', async () => {
+   const dto = validDto();
+   dto.appointment_date = "2025-25-10";
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ it('should fail when appointment_date invalid', async () => {
+   const dto = validDto();
+   dto.appointment_date = '4-2026-25';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:25';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:25';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ }); it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '001:25';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+  it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:250';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+  it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1.25';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+  it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:2';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+   it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:2';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+  it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '1:2';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+   it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.start_time = '01:2';
    const errors = await validate(dto);
    expect(errors.length).toBeGreaterThan(0);
  });
@@ -45,9 +150,16 @@ describe('CreateAppointmentDto Validation', () => {
    const errors = await validate(dto);
    expect(errors.length).toBeGreaterThan(0);
  });
+ 
  it('should fail when scheduling_type invalid', async () => {
    const dto = validDto();
    (dto as any).scheduling_type = 'BAD_VALUE';
+   const errors = await validate(dto);
+   expect(errors.length).toBeGreaterThan(0);
+ });
+ it('should fail invalid start_time format', async () => {
+   const dto = validDto();
+   dto.end_time = '24:00';
    const errors = await validate(dto);
    expect(errors.length).toBeGreaterThan(0);
  });
