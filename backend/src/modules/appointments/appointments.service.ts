@@ -15,7 +15,7 @@ import {
   EntityManager,
   SelectQueryBuilder,
 } from 'typeorm';
-
+import { Doctors } from '../doctors/entity/doctor.entity';
 import { Appointment } from './entities/appointment.entity';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { HoldNextAppointmentDto } from './dto/hold-next-appointment.dto';
@@ -68,7 +68,8 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
 
     @InjectRepository(CustomAvailability)
     private readonly customRepo: Repository<CustomAvailability>,
-
+    @InjectRepository(Doctors)
+    private readonly doctorRepo:Repository<Doctors>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -84,8 +85,6 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.reservationCleanupTimer);
     }
   }
-
-  // ================= BOOK SLOT =================
 async findBestAvailableSlot(
   doctorId: number,
   requestedDate: string,
@@ -173,10 +172,6 @@ async findBestAvailableSlot(
     }
   }
 
-  // ---------------------------------
-  // future days
-  // ---------------------------------
-
   const next =
     await this.getSlotsWithNextAvailable(
       doctorId,
@@ -235,15 +230,9 @@ async bookSlot(
 
  return this.dataSource.transaction(
   async (manager) => {
-   const {
-    doctor_id,
-    appointment_date,
-    start_time,
-    end_time
-   } = dto;
+   const {doctor_id,appointment_date,start_time,end_time} = dto;
   const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
-const now = new Date();
-
+  const now = new Date();
 if (appointmentDateTime < now) {
   throw new BadRequestException(
     'Cannot book appointment in the past'
@@ -260,7 +249,7 @@ if (appointmentDateTime < now) {
     });
      if (existingSameDay) {
     throw new ConflictException(
-      'you already book appointment for today'
+      `you already book appointment for ${appointment_date}`
     );
    }
    const current =
@@ -300,22 +289,15 @@ if (!requestedAvailable) {
       return {
         booked:false,
         message:'Requested slot unavailable',
-
         next_available_date:
           appointment_date,
-
         next_available_start:
           sameDayNext.start,
-
         next_available_end:
           sameDayNext.end
       };
     }
   }
-
-  // -------------------------
-  // 2. Future days (1..3)
-  // -------------------------
 
   for (
     let i = 1;
@@ -340,8 +322,6 @@ if (!requestedAvailable) {
     ) {
       continue;
     }
-
-    // try same time first
     if (
       start_time &&
       end_time &&
@@ -362,20 +342,15 @@ if (!requestedAvailable) {
 
         return {
           booked:false,
-
           next_available_date:
             futureDate,
-
           next_available_start:
             sameTime.start,
-
           next_available_end:
             sameTime.end
         };
       }
     }
-
-    // fallback first available
     const firstAvailable =
       future.slots.find(
         s =>
@@ -460,21 +435,50 @@ if (!requestedAvailable) {
         }
       )
     );
+
    return {
      booked:true,
-     booked_date:
-       appointment_date,
-     booked_start:
-       start_time,
-     booked_end:
-       end_time,
+     TokenNo:await this.getonkeNummber(doctor_id),
+     appointmentId:appointment.appointment_id,
+     reportingTime: this.getRepporting(doctor_id,start_time),
+     booked_date:appointment_date,
+     booked_start:start_time,
+     booked_end: end_time,
      appointment
    };
 
   }
  );
 }
-  // ================= HOLD NEXT SLOT =================
+async getRepporting(doctorId:number,startTime:string){
+  const doctor = await this.doctorRepo.findOne({
+  where: { id: doctorId },
+  select: {
+    reportBefore: true
+  }
+});
+const reportBefore = doctor?.reportBefore;
+   const [hours, minutes] = startTime.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes - (reportBefore ?? 15), 0);
+  return date.toTimeString().slice(0,5);
+
+}
+async getonkeNummber(doctorId:number){
+  const lastAppointment = await this.appointmentRepo.findOne({
+  where: {
+    doctor: { id: doctorId }
+  },
+  select: {
+    tokenNo: true
+  },
+  order: {
+    tokenNo: 'DESC'
+  }
+});
+const lastTokenNumber= lastAppointment?.tokenNo
+  return  (lastTokenNumber ?? 0) +1
+}
   async holdNextSlot(dto: HoldNextAppointmentDto, userId: number) {
     await this.cleanupExpiredReservations();
 
@@ -507,7 +511,7 @@ if (!requestedAvailable) {
 
 if (existing) {
   throw new ConflictException(
-    'User already has appointment for this day'
+    `User already has appointment for ${startDate} `
   );
 }
     for (let dayOffset = 0; dayOffset < searchDays; dayOffset += 1) {
@@ -542,7 +546,7 @@ if (existing) {
     }
 
     throw new NotFoundException(
-      `No appointments available in the next ${searchDays} days. Please contact clinic.`,
+      `No appointments available in the next 3 days. Please contact clinic.`,
     );
   }
 
@@ -589,8 +593,6 @@ if (existing) {
       return manager.save(appointment);
     });
   }
-
-  // ================= CONFIRM BOOKING =================
   async confirmBooking(appointmentId: number, userId: number) {
     return this.dataSource.transaction(async (manager) => {
       const appointment = await manager
@@ -625,8 +627,6 @@ if (existing) {
       return manager.save(appointment);
     });
   }
-
-  // ================= RESCHEDULE =================
   async rescheduleAppointment(
     appointmentId: number,
     userId: number,
@@ -682,8 +682,6 @@ if (existing) {
       });
     });
   }
-
-  // ================= SLOT CHECK =================
   async checkSlotAvailability(
     manager: EntityManager,
     doctorId: number,
@@ -772,8 +770,6 @@ if (existing) {
       },
     );
   }
-
-  // ================= ADD PATIENT =================
   async addPatient(appointmentId: number, patientId: number, userId: number) {
     const appointment = await this.appointmentRepo.findOne({
       where: { appointment_id: appointmentId },
@@ -787,8 +783,6 @@ if (existing) {
 
     return this.appointmentRepo.save(appointment);
   }
-
-  // ================= GET SLOTS =================
   async getAvailableSlots(
     doctorId: number,
     date: string,
@@ -799,7 +793,6 @@ if (existing) {
     summary: SlotSummary;
   }> {
     await this.cleanupExpiredReservations();
-
     const custom = await this.customRepo.findOne({
       where: {
         doctor: { id: doctorId },
@@ -850,7 +843,6 @@ if (existing) {
       matchedList[0].scheduling_type === 'WAVE'
         ? SchedulingType.WAVE
         : SchedulingType.STREAM;
-
     for (const matched of matchedList) {
       if (scheduling_type === SchedulingType.STREAM) {
         const slots = await this.handleStream(
@@ -874,7 +866,6 @@ if (existing) {
         results.push(...slots);
       }
     }
-
     results.sort((a, b) => a.start.localeCompare(b.start));
 
     return {
@@ -884,8 +875,6 @@ if (existing) {
       summary: this.summarizeSlots(results, scheduling_type),
     };
   }
-
-  // ================= NEXT AVAILABLE SLOTS =================
   async getSlotsWithNextAvailable(
     doctorId: number,
     date?: string,
@@ -905,16 +894,13 @@ if (existing) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
       throw new BadRequestException('Invalid date format');
     }
-
     const parsedMaxDays =
       maxDays ??
       Number(process.env.NEXT_AVAILABLE_MAX_DAYS) ??
       NEXT_AVAILABILITY_DEFAULT_MAX_DAYS;
-
     const effectiveMaxDays = Number.isFinite(parsedMaxDays)
       ? Math.max(0, Math.floor(parsedMaxDays))
       : NEXT_AVAILABILITY_DEFAULT_MAX_DAYS;
-
     const startDate = requestedDate < today ? today : requestedDate;
 
     const todayResult = await this.getAvailableSlots(doctorId, startDate);
@@ -1002,8 +988,6 @@ if (existing) {
       available_slots: availableSlots,
     };
   }
-
-  // ================= STREAM =================
   async handleStream(
     start: string,
     end: string,
@@ -1041,8 +1025,6 @@ if (existing) {
       available: !bookedSet.has(slot.start),
     }));
   }
-
-  // ================= WAVE =================
   async handleWave(
     start: string,
     end: string,
@@ -1072,8 +1054,6 @@ if (existing) {
       },
     ];
   }
-
-  // ================= UTIL =================
   generateSlots(
     start: string,
     end: string,

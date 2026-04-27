@@ -29,7 +29,10 @@ export class Doctors {
   @Column({ default:0, nullable: true,type: 'int' })
   experienceYears: number;
 
+  @Column ({type: 'int', default: 15})
+  reportBefore:number;
 
+  
   @Column({ nullable: true })
   achievement: string;
 

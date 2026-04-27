@@ -36,7 +36,6 @@ export class Appointment {
   tokenNo:number;
   @Column ({type: 'time'})
   reportTime:string;
-
   @ManyToOne(() => Patients, { nullable: true })
   @JoinColumn({ name: 'patient_id' })
   patient: Patients; 
