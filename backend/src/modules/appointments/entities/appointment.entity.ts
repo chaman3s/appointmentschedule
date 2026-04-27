@@ -27,14 +27,19 @@ export class Appointment {
   @ManyToOne(() => Doctors)
   @JoinColumn({ name: 'doctor_id' })
   doctor: Doctors;
+  
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'user_id' })
   user: User;
+  @Column ()
+  tokenNo:number;
+  @Column ({type: 'time'})
+  reportTime:string;
 
   @ManyToOne(() => Patients, { nullable: true })
   @JoinColumn({ name: 'patient_id' })
-  patient: Patients;
+  patient: Patients; 
 
   @Column({ type: 'date' })
   appointment_date: string;
