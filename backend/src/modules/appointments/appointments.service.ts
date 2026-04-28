@@ -188,7 +188,7 @@ async findBestAvailableSlot(
     await this.getSlotsWithNextAvailable(
       doctorId,
       requestedDate,
-      3,
+      undefined,
     );
 
   if (
@@ -289,124 +289,26 @@ if (appointmentDateTime < now) {
       wave.available_spots > 0;
    }
 if (!requestedAvailable) {
-  
-  
-  if (!isWave) {
-    const sameDayNext =
-      (current.slots as StreamSlot[])
-      .find(
-        s =>
-          s.start !== start_time &&
-          s.available
-      );
-    if (sameDayNext) {
-      const TokenNo =await this.getTokenNummber(doctor_id,appointment_date)
-      const reportTime = await this.getRepporting(doctor_id,sameDayNext.start)
-      return {
-        
-        booked:false,
-        message:'Requested slot unavailable',
-        next_available_date:
-          appointment_date,
-        next_available_start:
-          sameDayNext.start,
-        next_available_end:
-          sameDayNext.end,
-        estimatedTokenNo:TokenNo,
-        estimatedReportingTime:reportTime
-      };
-    }
-  }
-
-  for (
-    let i = 1;
-    i <= 3;
-    i++
-  ) {
-
-    const futureDate =
-      this.addDays(
-        appointment_date,
-        i
-      );
-
-    const future =
-      await this.getAvailableSlots(
-        doctor_id,
-        futureDate,
-      );
-
-    if (
-      !future.slots.length
-    ) {
-      continue;
-    }
-    if (
-      start_time &&
-      end_time &&
-      future.scheduling_type
-       === SchedulingType.STREAM
-    ) {
-
-      const sameTime =
-       (future.slots as StreamSlot[])
-       .find(
-        s =>
-         s.start===start_time &&
-         s.end===end_time &&
-         s.available
-       );
-
-      if (sameTime) {
-        const TokenNo =await this.getTokenNummber(doctor_id,futureDate)
-        const reportTime = await this.getRepporting(doctor_id,sameTime.start)
-        return {
-          booked:false,
-          next_available_date:
-            futureDate,
-          next_available_start:
-            sameTime.start,
-          next_available_end:
-            sameTime.end,
-          estimatedTokenNo:TokenNo,
-          estimatedReportingTime:reportTime
-        };
-      }
-    }
-    const firstAvailable =
-      future.slots.find(
-        s =>
-          future.scheduling_type
-          === SchedulingType.WAVE
-            ? (s as WaveSlot)
-               .available_spots > 0
-            : (s as StreamSlot)
-               .available
-      );
-
-    if (firstAvailable) {
-      const TokenNo =await this.getTokenNummber(doctor_id,futureDate)
-      const reportTime = await this.getRepporting(doctor_id,firstAvailable.start)
-      return {
-        booked:false,
-        message:`No appointments available today. Next available appointment is on ${futureDate} at ${firstAvailable.start}`,
-        next_available_date:
-          futureDate,
-
-        next_available_start:
-          firstAvailable.start,
-
-        next_available_end:
-          firstAvailable.end,
-        estimatedTokenNo:TokenNo,
-        estimatedReportingTime:reportTime
-      };
-    }
-  }
-
-  throw new BadRequestException(
-    'No appointments available in the next 3 days. Please contact clinic.'
+  const best = await this.findBestAvailableSlot(
+    doctor_id,
+    appointment_date,
+    start_time,
+    end_time,
   );
+
+  const tokenNo = await this.getTokenNummber(doctor_id, best.date);
+  const reportTime = await this.getRepporting(doctor_id, best.start);
+  const reason = await this.getUnavailabilityReason(doctor_id, appointment_date);
+
+  return {
+    booked: false,
+    message: this.formatNextAvailableMessage(reason, best.date, best.start),
+    next_available_date: best.date,
+    next_available_start: best.start,
+    next_available_end: best.end,
+    estimatedTokenNo: tokenNo,
+    estimatedReportingTime: reportTime,
+  };
 }
    const occupied =
     await this.getOccupiedSlotCount(
