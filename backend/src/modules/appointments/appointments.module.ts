@@ -4,6 +4,7 @@ import { AppointmentsController } from './appointments.controller';
 import { Appointment } from './entities/appointment.entity';
 import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
+import { Doctors } from '../doctors/entity/doctor.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 @Module(
   {
@@ -12,9 +13,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         ConsultingTime,
         CustomAvailability,
         Appointment,
+        Doctors,
       ]),
     ],
     controllers: [AppointmentsController],
     providers: [AppointmentsService],
+
   })
 export class AppointmentsModule { }

@@ -277,6 +277,8 @@ if (appointmentDateTime < now) {
       wave.available_spots > 0;
    }
 if (!requestedAvailable) {
+  
+  
   if (!isWave) {
     const sameDayNext =
       (current.slots as StreamSlot[])
@@ -286,7 +288,10 @@ if (!requestedAvailable) {
           s.available
       );
     if (sameDayNext) {
+      const TokenNo =await this.getTokenNummber(doctor_id,appointment_date)
+      const reportTime = await this.getRepporting(doctor_id,sameDayNext.start)
       return {
+        
         booked:false,
         message:'Requested slot unavailable',
         next_available_date:
@@ -294,7 +299,9 @@ if (!requestedAvailable) {
         next_available_start:
           sameDayNext.start,
         next_available_end:
-          sameDayNext.end
+          sameDayNext.end,
+        estimatedTokenNo:TokenNo,
+        estimatedReportingTime:reportTime
       };
     }
   }
@@ -339,7 +346,8 @@ if (!requestedAvailable) {
        );
 
       if (sameTime) {
-
+        const TokenNo =await this.getTokenNummber(doctor_id,futureDate)
+        const reportTime = await this.getRepporting(doctor_id,sameTime.start)
         return {
           booked:false,
           next_available_date:
@@ -347,7 +355,9 @@ if (!requestedAvailable) {
           next_available_start:
             sameTime.start,
           next_available_end:
-            sameTime.end
+            sameTime.end,
+          estimatedTokenNo:TokenNo,
+          estimatedReportingTime:reportTime
         };
       }
     }
@@ -363,7 +373,8 @@ if (!requestedAvailable) {
       );
 
     if (firstAvailable) {
-
+      const TokenNo =await this.getTokenNummber(doctor_id,futureDate)
+      const reportTime = await this.getRepporting(doctor_id,firstAvailable.start)
       return {
         booked:false,
         message:`No appointments available today. Next available appointment is on ${futureDate} at ${firstAvailable.start}`,
@@ -374,7 +385,9 @@ if (!requestedAvailable) {
           firstAvailable.start,
 
         next_available_end:
-          firstAvailable.end
+          firstAvailable.end,
+        estimatedTokenNo:TokenNo,
+        estimatedReportingTime:reportTime
       };
     }
   }
@@ -410,7 +423,7 @@ if (!requestedAvailable) {
       );
     }
    }
-   const tokenno= await this.getTokenNummber(doctor_id)
+   const tokenno= await this.getTokenNummber(doctor_id,appointment_date)
    const reportingTime = await this.getRepporting(doctor_id,start_time)
    const appointment =
     await manager.save(
@@ -468,21 +481,23 @@ const reportBefore = doctor?.reportBefore;
   return date.toTimeString().slice(0,5);
 
 }
-async getTokenNummber(doctorId:number){
-  const lastAppointment = await this.appointmentRepo.findOne({
-  where: {
-    doctor: { id: doctorId }
-  },
-  select: {
-    tokenNo: true
-  },
-  order: {
-    tokenNo: 'DESC'
-  }
-});
-const lastTokenNumber= lastAppointment?.tokenNo
-  return  (lastTokenNumber ?? 0) +1
-}
+ async getTokenNummber(doctorId:number,appointment_date:string){
+   const lastAppointment = await this.appointmentRepo.findOne({
+   where: {
+     doctor: { id: doctorId },
+     appointment_date:appointment_date,
+   },
+   select: {
+     appointment_id: true,
+     tokenNo: true
+   },
+   order: {
+     tokenNo: 'DESC'
+   }
+ });
+ const lastTokenNumber= lastAppointment?.tokenNo
+   return  (lastTokenNumber ?? 0) +1
+ }
   async holdNextSlot(dto: HoldNextAppointmentDto, userId: number) {
     await this.cleanupExpiredReservations();
 
