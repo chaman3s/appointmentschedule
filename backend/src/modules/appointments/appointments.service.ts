@@ -22,6 +22,9 @@ import { HoldNextAppointmentDto } from './dto/hold-next-appointment.dto';
 import { Patients } from '../patients/entities/patient.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
 import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
+import { ClinicSchedule } from '../leave-management/entities/clinicSchedule.entity';
+import { ClinicClosure } from '../leave-management/entities/clinicClosure.entity';
+import { DoctorLeave } from '../leave-management/entities/DoctorLeave.entity';
 import {
   SchedulingType,
   AppointmentStatus,
@@ -53,7 +56,7 @@ type SlotSummary = {
 
 const HOLD_MINUTES = 5;
 const HOLD_SEARCH_DAYS = 30;
-const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 3;
+const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 30;
 
 @Injectable()
 export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
@@ -69,7 +72,16 @@ export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(CustomAvailability)
     private readonly customRepo: Repository<CustomAvailability>,
     @InjectRepository(Doctors)
-    private readonly doctorRepo:Repository<Doctors>,
+    private readonly doctorRepo: Repository<Doctors>,
+
+    @InjectRepository(ClinicSchedule)
+    private readonly clinicScheduleRepo: Repository<ClinicSchedule>,
+
+    @InjectRepository(ClinicClosure)
+    private readonly clinicClosureRepo: Repository<ClinicClosure>,
+
+    @InjectRepository(DoctorLeave)
+    private readonly doctorLeaveRepo: Repository<DoctorLeave>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -812,6 +824,16 @@ if (existing) {
     summary: SlotSummary;
   }> {
     await this.cleanupExpiredReservations();
+
+    const availability = await this.getDateAvailability(doctorId, date);
+    if (!availability.isClinicOpen || !availability.isDoctorWorkingDay) {
+      return {
+        scheduling_type: SchedulingType.STREAM,
+        slots: [],
+        is_working_day: availability.isDoctorWorkingDay,
+        summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
+      };
+    }
     const custom = await this.customRepo.findOne({
       where: {
         doctor: { id: doctorId },
@@ -820,13 +842,15 @@ if (existing) {
     });
 
     if (custom) {
-      const slots = await this.handleStream(
+      let slots = await this.handleStream(
         custom.startTime,
         custom.endTime,
         custom.slotDuration,
         doctorId,
         date,
       );
+
+      slots = await this.applyDoctorLeaveToStreamSlots(doctorId, date, slots);
 
       return {
         scheduling_type: SchedulingType.STREAM,
@@ -864,13 +888,14 @@ if (existing) {
         : SchedulingType.STREAM;
     for (const matched of matchedList) {
       if (scheduling_type === SchedulingType.STREAM) {
-        const slots = await this.handleStream(
+        let slots = await this.handleStream(
           matched.startTime,
           matched.endTime,
           matched.slotDuration,
           doctorId,
           date,
         );
+        slots = await this.applyDoctorLeaveToStreamSlots(doctorId, date, slots);
         results.push(...slots);
       }
 
@@ -882,7 +907,8 @@ if (existing) {
           doctorId,
           date,
         );
-        results.push(...slots);
+        const filtered = await this.applyDoctorLeaveToWaveSlots(doctorId, date, slots);
+        results.push(...filtered);
       }
     }
     results.sort((a, b) => a.start.localeCompare(b.start));
@@ -923,11 +949,14 @@ if (existing) {
     const startDate = requestedDate < today ? today : requestedDate;
 
     const todayResult = await this.getAvailableSlots(doctorId, startDate);
-    const todayAvailableSlots = todayResult.slots.filter((slot) =>
-      this.slotHasAvailability(slot, todayResult.scheduling_type),
+    const todayAvailableSlots = this.filterAvailableSlots(
+      todayResult.slots,
+      todayResult.scheduling_type,
     );
 
-    if (todayAvailableSlots.length > 0) {
+    const todayAvailability = await this.getDateAvailability(doctorId, startDate);
+
+    if (todayAvailableSlots.length > 0 && todayAvailability.reason !== 'CONSULTING_OVER') {
       return {
         requested_date: requestedDate,
         date: startDate,
@@ -944,9 +973,14 @@ if (existing) {
       dayOffset += 1
     ) {
       const candidateDate = this.addDays(startDate, dayOffset);
+      const candidateAvailability = await this.getDateAvailability(doctorId, candidateDate);
+      if (!candidateAvailability.isClinicOpen || !candidateAvailability.isDoctorWorkingDay) {
+        continue;
+      }
       const candidate = await this.getAvailableSlots(doctorId, candidateDate);
-      const candidateAvailableSlots = candidate.slots.filter((slot) =>
-        this.slotHasAvailability(slot, candidate.scheduling_type),
+      const candidateAvailableSlots = this.filterAvailableSlots(
+        candidate.slots,
+        candidate.scheduling_type,
       );
 
       if (candidateAvailableSlots.length === 0) {
@@ -954,8 +988,9 @@ if (existing) {
       }
 
       const isToday = startDate === today;
+      const reason = await this.getUnavailabilityReason(doctorId, startDate);
       const message = isToday
-        ? `No appointments available today. Next available appointment is on ${candidateDate}.`
+        ? this.formatNextAvailableMessage(reason, candidateDate)
         : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
 
       return {

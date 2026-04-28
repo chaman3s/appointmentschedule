@@ -1,1 +1,3 @@
-export class CreateLeaveManagementDto {}
+export class CreateLeaveManagementDto {
+    
+}

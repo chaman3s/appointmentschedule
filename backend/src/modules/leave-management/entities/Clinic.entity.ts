@@ -7,7 +7,7 @@ import {
 
 import { ClinicSchedule } from './clinicSchedule.entity';
 import { ClinicClosure } from './clinicClosure.entity';
-import { Doctor } from '../../doctors/entity/doctor.entity';
+import { Doctors } from '../../doctors/entity/doctor.entity';
 
 @Entity('clinics')
 export class Clinic {
@@ -34,8 +34,8 @@ export class Clinic {
   closures: ClinicClosure[];
 
   @OneToMany(
-    () => Doctor,
+    () => Doctors,
     doctor => doctor.clinic
   )
-  doctors: Doctor[];
+  doctors: Doctors[];
 }
