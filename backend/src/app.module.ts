@@ -11,6 +11,7 @@ import { PatientsModule} from './modules/patients/patients.module';
 import { ConsultingTimeModule } from './modules/consulting-time/consulting-time.module';
 import { UserDoctorModule } from './modules/userdoctor/user-doctor.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { LeaveManagementModule } from './modules/leave-management/leave-management.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
     ConsultingTimeModule,
     UserDoctorModule,
     AppointmentsModule,
+    LeaveManagementModule,
   ],
   controllers: [AppController], providers: [AppService],
 })

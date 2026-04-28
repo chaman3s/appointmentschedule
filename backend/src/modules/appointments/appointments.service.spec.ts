@@ -7,6 +7,10 @@ import { AppointmentsService } from './appointments.service';
 import { Appointment } from './entities/appointment.entity';
 import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity';
 import { CustomAvailability } from '../consulting-time/entity/custom_availability.entity';
+import { Doctors } from '../doctors/entity/doctor.entity';
+import { ClinicSchedule } from '../leave-management/entities/clinicSchedule.entity';
+import { ClinicClosure } from '../leave-management/entities/clinicClosure.entity';
+import { DoctorLeave } from '../leave-management/entities/DoctorLeave.entity';
 import {
   AppointmentStatus,
   SchedulingType,
@@ -69,6 +73,10 @@ describe('AppointmentsService', () => {
   let appointmentRepoMock: any;
   let consultingRepoMock: any;
   let customRepoMock: any;
+  let doctorRepoMock: any;
+  let clinicScheduleRepoMock: any;
+  let clinicClosureRepoMock: any;
+  let doctorLeaveRepoMock: any;
   let dataSourceMock: any;
 
   beforeEach(async () => {
@@ -80,11 +88,28 @@ describe('AppointmentsService', () => {
     };
 
     consultingRepoMock = {
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
 
     customRepoMock = {
       findOne: jest.fn(),
+    };
+
+    doctorRepoMock = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    clinicScheduleRepoMock = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    clinicClosureRepoMock = {
+      createQueryBuilder: jest.fn(() => qbMock()),
+    };
+
+    doctorLeaveRepoMock = {
+      findOne: jest.fn(),
+      createQueryBuilder: jest.fn(() => qbMock()),
     };
 
     dataSourceMock = {
@@ -105,6 +130,22 @@ describe('AppointmentsService', () => {
         {
           provide: getRepositoryToken(CustomAvailability),
           useValue: customRepoMock,
+        },
+        {
+          provide: getRepositoryToken(Doctors),
+          useValue: doctorRepoMock,
+        },
+        {
+          provide: getRepositoryToken(ClinicSchedule),
+          useValue: clinicScheduleRepoMock,
+        },
+        {
+          provide: getRepositoryToken(ClinicClosure),
+          useValue: clinicClosureRepoMock,
+        },
+        {
+          provide: getRepositoryToken(DoctorLeave),
+          useValue: doctorLeaveRepoMock,
         },
         {
           provide: DataSource,
@@ -241,7 +282,7 @@ describe('AppointmentsService', () => {
       expect(result.requested_date).toBe('2029-12-31');
       expect(result.date).toBe(tomorrow);
       expect(result.message).toBe(
-        `No appointments available today. Next available appointment is on ${tomorrow}.`,
+        `Today’s appointments are fully booked. Next available slot is on ${tomorrow}.`,
       );
     });
 
@@ -285,8 +326,8 @@ describe('AppointmentsService', () => {
     it.each([
       { label: 'negative', maxDays: -3, expected: 0 },
       { label: 'fractional', maxDays: 2.9, expected: 2 },
-      { label: 'nan', maxDays: Number.NaN, expected: 3 },
-      { label: 'infinite', maxDays: Number.POSITIVE_INFINITY, expected: 3 },
+      { label: 'nan', maxDays: Number.NaN, expected: 30 },
+      { label: 'infinite', maxDays: Number.POSITIVE_INFINITY, expected: 30 },
     ])('normalizes maxDays ($label)', async ({ maxDays, expected }) => {
       const start = '2030-01-15';
       const getAvailableSlotsSpy = jest.spyOn(service, 'getAvailableSlots').mockResolvedValue({
@@ -355,7 +396,7 @@ describe('AppointmentsService', () => {
       expect(result.date).toBe(tomorrow);
       expect(result.available_slots).toEqual([{ start: '11:15', end: '11:30', available: true }]);
       expect(result.message).toBe(
-        `No appointments available today. Next available appointment is on ${tomorrow}.`,
+        `Today’s appointments are fully booked. Next available slot is on ${tomorrow}.`,
       );
     });
 
@@ -621,7 +662,7 @@ describe('AppointmentsService', () => {
       });
     });
 
-    it('calls getSlotsWithNextAvailable with maxDays=3 for future search', async () => {
+    it('calls getSlotsWithNextAvailable for future search', async () => {
       jest.spyOn(service, 'getAvailableSlots').mockResolvedValue({
         scheduling_type: SchedulingType.STREAM,
         slots: [],
@@ -639,7 +680,7 @@ describe('AppointmentsService', () => {
       } as any);
 
       await service.findBestAvailableSlot(1, '2030-01-15');
-      expect(nextSpy).toHaveBeenCalledWith(1, '2030-01-15', 3);
+      expect(nextSpy).toHaveBeenCalledWith(1, '2030-01-15', undefined);
     });
   });
 
@@ -689,7 +730,7 @@ describe('AppointmentsService', () => {
           start_time: '10:00',
           end_time: '10:15',
         } as any),
-      ).rejects.toThrow('you already book appointment for today');
+      ).rejects.toThrow('you already book appointment for 2099-04-22');
 
       expect(getAvailableSlotsSpy).not.toHaveBeenCalled();
     });
@@ -715,10 +756,13 @@ describe('AppointmentsService', () => {
 
       expect(result).toEqual({
         booked: false,
-        message: 'Requested slot unavailable',
+        message:
+          'Requested slot unavailable. Next available slot is on 2099-04-22 at 10:15.',
         next_available_date: '2099-04-22',
         next_available_start: '10:15',
         next_available_end: '10:30',
+        estimatedTokenNo: 1,
+        estimatedReportingTime: '10:00',
       });
       expect(occupiedSpy).not.toHaveBeenCalled();
       expect(saveSpy).not.toHaveBeenCalled();
@@ -763,9 +807,12 @@ describe('AppointmentsService', () => {
 
       expect(result).toEqual({
         booked: false,
+        message: `Today’s appointments are fully booked. Next available slot is on ${day1} at 10:00.`,
         next_available_date: day1,
         next_available_start: '10:00',
         next_available_end: '10:15',
+        estimatedTokenNo: 1,
+        estimatedReportingTime: '09:45',
       });
     });
 
@@ -808,10 +855,12 @@ describe('AppointmentsService', () => {
 
       expect(result).toEqual({
         booked: false,
-        message: `No appointments available today. Next available appointment is on ${day1} at 11:00`,
+        message: `Today’s appointments are fully booked. Next available slot is on ${day1} at 11:00.`,
         next_available_date: day1,
         next_available_start: '11:00',
         next_available_end: '11:15',
+        estimatedTokenNo: 1,
+        estimatedReportingTime: '10:45',
       });
     });
 
@@ -865,7 +914,7 @@ describe('AppointmentsService', () => {
       expect(result.next_available_start).toBe('12:00');
     });
 
-    it('throws when no appointments in next 3 days', async () => {
+    it('throws when no appointments in next 30 days', async () => {
       jest.spyOn(service, 'getAvailableSlots').mockResolvedValue({
         scheduling_type: SchedulingType.STREAM,
         slots: [],
@@ -881,7 +930,7 @@ describe('AppointmentsService', () => {
           start_time: '10:00',
           end_time: '10:15',
         } as any),
-      ).rejects.toThrow('No appointments available in the next 3 days. Please contact clinic.');
+      ).rejects.toThrow('No appointments available in the next 30 days. Please contact clinic.');
     });
 
     it('throws conflict when stream slot already occupied', async () => {
@@ -965,10 +1014,12 @@ describe('AppointmentsService', () => {
 
       expect(result).toEqual({
         booked: false,
-        message: `No appointments available today. Next available appointment is on ${day1} at 10:00`,
+        message: `Today’s appointments are fully booked. Next available slot is on ${day1} at 10:00.`,
         next_available_date: day1,
         next_available_start: '10:00',
         next_available_end: '11:00',
+        estimatedTokenNo: 1,
+        estimatedReportingTime: '09:45',
       });
     });
 
@@ -1086,7 +1137,7 @@ describe('AppointmentsService', () => {
       {
         label: 'end mismatches',
         slots: [streamSlot('10:00', '10:30', true), streamSlot('11:00', '11:15', true)],
-        expectedStart: '11:00',
+        expectedStart: '10:00',
       },
       {
         label: 'start mismatches',

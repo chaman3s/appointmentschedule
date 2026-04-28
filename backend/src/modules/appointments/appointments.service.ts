@@ -54,6 +54,14 @@ type SlotSummary = {
   available_slots: number;
 };
 
+type UnavailabilityReason =
+  | 'SLOTS_FULL'
+  | 'CONSULTING_OVER'
+  | 'DOCTOR_ON_LEAVE'
+  | 'CLINIC_CLOSED'
+  | 'DOCTOR_NOT_WORKING'
+  | null;
+
 const HOLD_MINUTES = 5;
 const HOLD_SEARCH_DAYS = 30;
 const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 30;
@@ -196,7 +204,7 @@ async findBestAvailableSlot(
     !next.available_slots.length
   ) {
     throw new BadRequestException(
-      'No future slots available',
+      next?.message || 'No future slots available',
     );
   }
 
@@ -269,6 +277,12 @@ if (appointmentDateTime < now) {
       doctor_id,
       appointment_date,
     );
+
+   const dateAvailability = await this.getDateAvailability(
+     doctor_id,
+     appointment_date,
+     current.is_working_day,
+   );
    const isWave =
     current.scheduling_type ===
     SchedulingType.WAVE;
@@ -288,6 +302,10 @@ if (appointmentDateTime < now) {
     requestedAvailable =
       wave.available_spots > 0;
    }
+
+   if (dateAvailability.reason === 'CONSULTING_OVER') {
+     requestedAvailable = false;
+   }
 if (!requestedAvailable) {
   const best = await this.findBestAvailableSlot(
     doctor_id,
@@ -298,7 +316,14 @@ if (!requestedAvailable) {
 
   const tokenNo = await this.getTokenNummber(doctor_id, best.date);
   const reportTime = await this.getRepporting(doctor_id, best.start);
-  const reason = await this.getUnavailabilityReason(doctor_id, appointment_date);
+  const reason =
+    best.date === appointment_date
+      ? null
+      : await this.getUnavailabilityReason(
+          doctor_id,
+          appointment_date,
+          current.is_working_day,
+        );
 
   return {
     booked: false,
@@ -727,12 +752,21 @@ if (existing) {
   }> {
     await this.cleanupExpiredReservations();
 
-    const availability = await this.getDateAvailability(doctorId, date);
-    if (!availability.isClinicOpen || !availability.isDoctorWorkingDay) {
+    const clinicOpen = await this.isClinicOpenForDoctor(doctorId, date);
+    if (!clinicOpen.isOpen) {
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
-        is_working_day: availability.isDoctorWorkingDay,
+        is_working_day: true,
+        summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
+      };
+    }
+
+    if (await this.isDoctorOnLeaveFullDay(doctorId, date)) {
+      return {
+        scheduling_type: SchedulingType.STREAM,
+        slots: [],
+        is_working_day: true,
         summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
       };
     }
@@ -856,7 +890,11 @@ if (existing) {
       todayResult.scheduling_type,
     );
 
-    const todayAvailability = await this.getDateAvailability(doctorId, startDate);
+    const todayAvailability = await this.getDateAvailability(
+      doctorId,
+      startDate,
+      todayResult.is_working_day,
+    );
 
     if (todayAvailableSlots.length > 0 && todayAvailability.reason !== 'CONSULTING_OVER') {
       return {
@@ -875,10 +913,6 @@ if (existing) {
       dayOffset += 1
     ) {
       const candidateDate = this.addDays(startDate, dayOffset);
-      const candidateAvailability = await this.getDateAvailability(doctorId, candidateDate);
-      if (!candidateAvailability.isClinicOpen || !candidateAvailability.isDoctorWorkingDay) {
-        continue;
-      }
       const candidate = await this.getAvailableSlots(doctorId, candidateDate);
       const candidateAvailableSlots = this.filterAvailableSlots(
         candidate.slots,
@@ -890,7 +924,11 @@ if (existing) {
       }
 
       const isToday = startDate === today;
-      const reason = await this.getUnavailabilityReason(doctorId, startDate);
+      const reason = await this.getUnavailabilityReason(
+        doctorId,
+        startDate,
+        todayResult.is_working_day,
+      );
       const message = isToday
         ? this.formatNextAvailableMessage(reason, candidateDate)
         : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
@@ -927,21 +965,25 @@ if (existing) {
     return slots.filter((slot) => this.slotHasAvailability(slot, schedulingType));
   }
 
-  private async getDateAvailability(doctorId: number, date: string) {
-    const [clinicOpen, doctorWorking, consultingOver] = await Promise.all([
+  private async getDateAvailability(
+    doctorId: number,
+    date: string,
+    isDoctorWorkingDay?: boolean,
+  ) {
+    const [clinicOpen, consultingOver, doctorOnLeave] = await Promise.all([
       this.isClinicOpenForDoctor(doctorId, date),
-      this.isDoctorWorkingDay(doctorId, date),
       this.isConsultingTimeOver(doctorId, date),
+      this.isDoctorOnLeaveFullDay(doctorId, date),
     ]);
 
-    const doctorOnLeave = await this.isDoctorOnLeaveFullDay(doctorId, date);
+    const resolvedIsDoctorWorkingDay =
+      isDoctorWorkingDay ?? (await this.isDoctorWorkingDay(doctorId, date));
 
     const isClinicOpen = clinicOpen.isOpen;
-    const isDoctorWorkingDay = doctorWorking;
 
     const reason = !isClinicOpen
       ? ('CLINIC_CLOSED' as const)
-      : !isDoctorWorkingDay
+      : !resolvedIsDoctorWorkingDay
         ? ('DOCTOR_NOT_WORKING' as const)
         : doctorOnLeave
           ? ('DOCTOR_ON_LEAVE' as const)
@@ -951,29 +993,35 @@ if (existing) {
 
     return {
       isClinicOpen,
-      isDoctorWorkingDay,
+      isDoctorWorkingDay: resolvedIsDoctorWorkingDay,
       doctorOnLeave,
       reason,
     } as const;
   }
 
-  private async getUnavailabilityReason(doctorId: number, date: string) {
-    const availability = await this.getDateAvailability(doctorId, date);
+  private async getUnavailabilityReason(
+    doctorId: number,
+    date: string,
+    isDoctorWorkingDay?: boolean,
+  ): Promise<UnavailabilityReason> {
+    const availability = await this.getDateAvailability(doctorId, date, isDoctorWorkingDay);
     if (availability.reason) return availability.reason;
 
     const slots = await this.getAvailableSlots(doctorId, date);
     const anyAvailable =
       this.filterAvailableSlots(slots.slots, slots.scheduling_type).length > 0;
-    return anyAvailable ? null : ('SLOTS_FULL' as const);
+    return anyAvailable ? null : 'SLOTS_FULL';
   }
 
   private formatNextAvailableMessage(
-    reason: Awaited<ReturnType<typeof this.getUnavailabilityReason>>,
+    reason: UnavailabilityReason,
     nextDate: string,
     nextTime?: string,
   ) {
     const timeSuffix = nextTime ? ` at ${nextTime}` : '';
     switch (reason) {
+      case null:
+        return `Requested slot unavailable. Next available slot is on ${nextDate}${timeSuffix}.`;
       case 'CONSULTING_OVER':
         return `Consultation hours are over. Next available slot is on ${nextDate}${timeSuffix}.`;
       case 'DOCTOR_ON_LEAVE':
@@ -1034,7 +1082,9 @@ if (existing) {
       where: { clinic: { id: clinicId }, dayOfWeek },
     });
 
-    if (!schedule || !schedule.isOpen) return { isOpen: false as const };
+    // Backwards compatible: if schedules not configured, treat clinic as open.
+    if (!schedule) return { isOpen: true as const };
+    if (!schedule.isOpen) return { isOpen: false as const };
 
     const startOfDay = new Date(`${date}T00:00:00.000Z`);
     const endOfDay = new Date(`${date}T23:59:59.999Z`);

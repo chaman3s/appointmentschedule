@@ -36,6 +36,6 @@ export class DoctorLeave {
   @Column({ type: 'time', nullable: true })
   endTime?: string | null; // HH:mm
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   reason?: string | null;
 }
