@@ -1021,6 +1021,186 @@ if (existing) {
       : (slot as StreamSlot).available;
   }
 
+  private filterAvailableSlots(slots: Slot[], schedulingType: SchedulingType) {
+    return slots.filter((slot) => this.slotHasAvailability(slot, schedulingType));
+  }
+
+  private async getDateAvailability(doctorId: number, date: string) {
+    const [clinicOpen, doctorWorking, consultingOver] = await Promise.all([
+      this.isClinicOpenForDoctor(doctorId, date),
+      this.isDoctorWorkingDay(doctorId, date),
+      this.isConsultingTimeOver(doctorId, date),
+    ]);
+
+    const doctorOnLeave = await this.isDoctorOnLeaveFullDay(doctorId, date);
+
+    const isClinicOpen = clinicOpen.isOpen;
+    const isDoctorWorkingDay = doctorWorking;
+
+    const reason = !isClinicOpen
+      ? ('CLINIC_CLOSED' as const)
+      : !isDoctorWorkingDay
+        ? ('DOCTOR_NOT_WORKING' as const)
+        : doctorOnLeave
+          ? ('DOCTOR_ON_LEAVE' as const)
+          : consultingOver
+            ? ('CONSULTING_OVER' as const)
+            : null;
+
+    return {
+      isClinicOpen,
+      isDoctorWorkingDay,
+      doctorOnLeave,
+      reason,
+    } as const;
+  }
+
+  private async getUnavailabilityReason(doctorId: number, date: string) {
+    const availability = await this.getDateAvailability(doctorId, date);
+    if (availability.reason) return availability.reason;
+
+    const slots = await this.getAvailableSlots(doctorId, date);
+    const anyAvailable =
+      this.filterAvailableSlots(slots.slots, slots.scheduling_type).length > 0;
+    return anyAvailable ? null : ('SLOTS_FULL' as const);
+  }
+
+  private formatNextAvailableMessage(
+    reason: Awaited<ReturnType<typeof this.getUnavailabilityReason>>,
+    nextDate: string,
+    nextTime?: string,
+  ) {
+    const timeSuffix = nextTime ? ` at ${nextTime}` : '';
+    switch (reason) {
+      case 'CONSULTING_OVER':
+        return `Consultation hours are over. Next available slot is on ${nextDate}${timeSuffix}.`;
+      case 'DOCTOR_ON_LEAVE':
+        return `Doctor is unavailable on selected date. Next available slot is on ${nextDate}${timeSuffix}.`;
+      case 'CLINIC_CLOSED':
+        return `Clinic is closed on selected date. Next available slot is on ${nextDate}${timeSuffix}.`;
+      case 'DOCTOR_NOT_WORKING':
+        return `Doctor is unavailable on selected date. Next available slot is on ${nextDate}${timeSuffix}.`;
+      case 'SLOTS_FULL':
+      default:
+        return `Today’s appointments are fully booked. Next available slot is on ${nextDate}${timeSuffix}.`;
+    }
+  }
+
+  private async isDoctorWorkingDay(doctorId: number, date: string) {
+    const dayName = getDayName(date);
+    const consultingList = await this.consultingRepo.find({
+      where: { doctor: { id: doctorId } },
+      relations: ['days'],
+    });
+    return consultingList.some((c) => c.days?.some((d) => d.day === dayName));
+  }
+
+  private async isConsultingTimeOver(doctorId: number, date: string) {
+    const now = new Date();
+    const today = this.toDateString(now);
+    if (date !== today) return false;
+
+    const dayName = getDayName(date);
+    const consultingList = await this.consultingRepo.find({
+      where: { doctor: { id: doctorId } },
+      relations: ['days'],
+    });
+    const matched = consultingList.filter((c) => c.days?.some((d) => d.day === dayName));
+    if (matched.length === 0) return false;
+
+    const latestEnd = matched
+      .map((m) => this.normalizeTime(m.endTime))
+      .sort()
+      .at(-1);
+
+    if (!latestEnd) return false;
+    const currentTime = now.toTimeString().slice(0, 5);
+    return currentTime >= latestEnd;
+  }
+
+  private async isClinicOpenForDoctor(doctorId: number, date: string) {
+    const doctor = await this.doctorRepo.findOne({
+      where: { id: doctorId },
+      relations: ['clinic'],
+    });
+
+    const clinicId = doctor?.clinic?.id;
+    if (!clinicId) return { isOpen: true as const };
+
+    const dayOfWeek = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    const schedule = await this.clinicScheduleRepo.findOne({
+      where: { clinic: { id: clinicId }, dayOfWeek },
+    });
+
+    if (!schedule || !schedule.isOpen) return { isOpen: false as const };
+
+    const startOfDay = new Date(`${date}T00:00:00.000Z`);
+    const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
+    const closureCount = await this.clinicClosureRepo
+      .createQueryBuilder('c')
+      .where('c.clinicId = :clinicId', { clinicId })
+      .andWhere('c.startDateTime <= :endOfDay', { endOfDay })
+      .andWhere('c.endDateTime >= :startOfDay', { startOfDay })
+      .getCount();
+
+    return { isOpen: closureCount === 0 } as const;
+  }
+
+  private async isDoctorOnLeaveFullDay(doctorId: number, date: string) {
+    const qb = this.doctorLeaveRepo
+      .createQueryBuilder('l')
+      .where('l.doctorId = :doctorId', { doctorId })
+      .andWhere(':date BETWEEN l.startDate AND l.endDate', { date })
+      .andWhere('l.isFullDay = true');
+
+    return (await qb.getCount()) > 0;
+  }
+
+  private async applyDoctorLeaveToStreamSlots(
+    doctorId: number,
+    date: string,
+    slots: StreamSlot[],
+  ) {
+    const leaves = await this.getDoctorLeavesForDate(doctorId, date);
+    if (leaves.length === 0) return slots;
+    if (leaves.some((l) => l.isFullDay)) return [];
+
+    return slots.filter((s) => !leaves.some((l) => this.slotOverlapsLeave(s.start, s.end, l)));
+  }
+
+  private async applyDoctorLeaveToWaveSlots(
+    doctorId: number,
+    date: string,
+    slots: WaveSlot[],
+  ) {
+    const leaves = await this.getDoctorLeavesForDate(doctorId, date);
+    if (leaves.length === 0) return slots;
+    if (leaves.some((l) => l.isFullDay)) return [];
+
+    return slots.filter((s) => !leaves.some((l) => this.slotOverlapsLeave(s.start, s.end, l)));
+  }
+
+  private async getDoctorLeavesForDate(doctorId: number, date: string) {
+    return this.doctorLeaveRepo
+      .createQueryBuilder('l')
+      .where('l.doctorId = :doctorId', { doctorId })
+      .andWhere(':date BETWEEN l.startDate AND l.endDate', { date })
+      .getMany();
+  }
+
+  private slotOverlapsLeave(start: string, end: string, leave: DoctorLeave) {
+    if (leave.isFullDay) return true;
+    if (!leave.startTime || !leave.endTime) return false;
+
+    const slotStart = this.toMinutes(start);
+    const slotEnd = this.toMinutes(end);
+    const leaveStart = this.toMinutes(this.normalizeTime(leave.startTime));
+    const leaveEnd = this.toMinutes(this.normalizeTime(leave.endTime));
+
+    return slotStart < leaveEnd && slotEnd > leaveStart;
+  }
+
   private summarizeSlots(slots: Slot[], schedulingType: SchedulingType) {
     if (schedulingType === SchedulingType.WAVE) {
       const waves = slots as WaveSlot[];
