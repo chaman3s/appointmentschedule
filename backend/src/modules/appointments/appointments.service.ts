@@ -1364,7 +1364,7 @@ if (existing) {
     const clinicId = doctor?.clinic?.id;
     if (!clinicId) return { isOpen: true as const };
 
-    const dayOfWeek = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    const dayOfWeek = getDayName(date);
     const schedule = await this.clinicScheduleRepo.findOne({
       where: { clinic: { id: clinicId }, dayOfWeek },
     });

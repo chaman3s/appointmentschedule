@@ -18,8 +18,10 @@ export class ClinicSchedule {
     clinic => clinic.schedules
   )
   clinic: Clinic;
-  @Column()
-  dayOfWeek: number; // 0=Sunday, 1=Monday ... 6=Saturday
+
+  // "SUNDAY" | "MONDAY" | ... | "SATURDAY"
+  @Column({ type: 'varchar', length: 9 })
+  dayOfWeek: string;
   @Column({
     type: 'time'
   })

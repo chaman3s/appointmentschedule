@@ -81,6 +81,7 @@ export class ClinicService {
 
     const normalized = dto.schedules.map((s) => ({
       ...s,
+      dayOfWeek: s.dayOfWeek,
       openTime: s.isOpen ? s.openTime ?? '09:00' : s.openTime ?? '09:00',
       closeTime: s.isOpen ? s.closeTime ?? '18:00' : s.closeTime ?? '18:00',
     }));

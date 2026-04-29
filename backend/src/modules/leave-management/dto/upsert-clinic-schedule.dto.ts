@@ -3,22 +3,44 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
-  Max,
-  Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { normalizeDay } from '../../../utils';
 
 export class ClinicScheduleItemDto {
-  @IsInt()
-  @Min(0)
-  @Max(6)
-  dayOfWeek: number; // 0=Sunday .. 6=Saturday
+  @Transform(({ value }) => {
+    if (
+      typeof value === 'number' ||
+      (typeof value === 'string' && /^\d+$/.test(value))
+    ) {
+      const n = Number(value);
+      const codes = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      try {
+        return normalizeDay(codes[n] ?? '');
+      } catch {
+        return value;
+      }
+    }
+    if (typeof value === 'string') {
+      try {
+        return normalizeDay(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
+  @IsString()
+  @Matches(/^(SUNDAY|MONDAY|TUESDAY|WEDNESDAY|THURSDAY|FRIDAY|SATURDAY)$/, {
+    message:
+      'dayOfWeek must be a valid day like "mon", "monday", or "MONDAY"',
+  })
+  dayOfWeek: string;
 
   @IsBoolean()
   isOpen: boolean;
@@ -43,4 +65,3 @@ export class UpsertClinicScheduleDto {
   @Type(() => ClinicScheduleItemDto)
   schedules: ClinicScheduleItemDto[];
 }
-
