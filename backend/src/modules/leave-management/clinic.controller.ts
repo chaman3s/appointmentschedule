@@ -26,8 +26,8 @@ export class ClinicController {
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('doctor')
   @Post('profile')
-  upsertProfile(@Req() req, @Body() dto: UpsertClinicProfileDto) {
-    return this.clinicService.upsertMyClinic(Number(req.user.id), dto);
+  createProfile(@Req() req, @Body() dto: UpsertClinicProfileDto) {
+    return this.clinicService.createMyClinic(Number(req.user.id), dto);
   }
 
   @UseGuards(Jwtguard, RolesGuard)
@@ -41,7 +41,7 @@ export class ClinicController {
   @Roles('doctor')
   @Patch('profile')
   updateProfile(@Req() req, @Body() dto: UpsertClinicProfileDto) {
-    return this.clinicService.upsertMyClinic(Number(req.user.id), dto);
+    return this.clinicService.updateMyClinic(Number(req.user.id), dto);
   }
 
   @UseGuards(Jwtguard, RolesGuard)
@@ -72,4 +72,3 @@ export class ClinicController {
     return this.clinicService.deleteMyClinicClosure(Number(req.user.id), id);
   }
 }
-

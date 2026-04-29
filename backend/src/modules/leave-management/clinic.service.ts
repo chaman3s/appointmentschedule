@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -29,7 +30,7 @@ export class ClinicService {
     private readonly closureRepo: Repository<ClinicClosure>,
   ) {}
 
-  async upsertMyClinic(doctorId: number, dto: UpsertClinicProfileDto) {
+  async createMyClinic(doctorId: number, dto: UpsertClinicProfileDto) {
     const doctor = await this.doctorRepo.findOne({
       where: { id: doctorId },
       relations: ['clinic'],
@@ -37,13 +38,26 @@ export class ClinicService {
     if (!doctor) throw new NotFoundException('Doctor not found');
 
     if (doctor.clinic?.id) {
-      await this.clinicRepo.update(doctor.clinic.id, { ...dto });
-      return this.getMyClinic(doctorId);
+      throw new ConflictException('Clinic profile already exists');
     }
 
-    const clinic = await this.clinicRepo.save(this.clinicRepo.create({ ...dto, isActive: true }));
+    const clinic = await this.clinicRepo.save(
+      this.clinicRepo.create({ ...dto, isActive: true }),
+    );
     doctor.clinic = clinic;
     await this.doctorRepo.save(doctor);
+    return this.getMyClinic(doctorId);
+  }
+
+  async updateMyClinic(doctorId: number, dto: UpsertClinicProfileDto) {
+    const doctor = await this.doctorRepo.findOne({
+      where: { id: doctorId },
+      relations: ['clinic'],
+    });
+    if (!doctor) throw new NotFoundException('Doctor not found');
+    if (!doctor.clinic?.id) throw new NotFoundException('Clinic profile not found');
+
+    await this.clinicRepo.update(doctor.clinic.id, { ...dto });
     return this.getMyClinic(doctorId);
   }
 

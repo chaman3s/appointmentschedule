@@ -2,7 +2,8 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  OneToMany
+  OneToMany,
+  OneToOne
 } from 'typeorm';
 
 import { ClinicSchedule } from './clinicSchedule.entity';
@@ -54,9 +55,6 @@ export class Clinic {
   )
   closures: ClinicClosure[];
 
-  @OneToMany(
-    () => Doctors,
-    doctor => doctor.clinic
-  )
-  doctors: Doctors[];
+  @OneToOne(() => Doctors, (doctor) => doctor.clinic)
+  doctor: Doctors;
 }

@@ -3,7 +3,8 @@ import {
  PrimaryGeneratedColumn,
  Column,
  OneToMany,
- ManyToOne
+ OneToOne,
+ JoinColumn
 } from 'typeorm';
 
 import { Services } from './services.entity';
@@ -84,10 +85,8 @@ export class Doctors {
 
 
  // NEW: doctor belongs to one clinic
- @ManyToOne(
-   () => Clinic,
-   clinic => clinic.doctors
- )
+ @OneToOne(() => Clinic, (clinic) => clinic.doctor, { nullable: true })
+ @JoinColumn()
  clinic: Clinic;
 
 

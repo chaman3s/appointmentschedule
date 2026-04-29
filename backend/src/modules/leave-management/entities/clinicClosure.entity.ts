@@ -37,7 +37,7 @@ export class ClinicClosure {
   startDateTime: Date;
 
   @Column({
-    type: 'timestamp'
+    type: 'timestamp',nullable:true
   })
   endDateTime: Date;
 

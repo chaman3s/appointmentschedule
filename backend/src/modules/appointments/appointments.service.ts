@@ -122,6 +122,89 @@ async findBestAvailableSlot(
     today.scheduling_type ===
     SchedulingType.WAVE;
 
+  const leaveAdjustedDate = await this.getNextDateIfOnFullDayLeave(
+    doctorId,
+    requestedDate, 
+  );
+  console.log("9:",leaveAdjustedDate)
+  if (leaveAdjustedDate !== requestedDate) {
+    const next = await this.getSlotsWithNextAvailable(
+      doctorId,
+      leaveAdjustedDate,
+      undefined,
+    );
+    if (!next || !next.available_slots.length) {
+      throw new BadRequestException(next?.message || 'No future slots available');
+    }
+    const first = next.available_slots[0];
+    return { date: next.date, start: first.start, end: first.end };
+  }
+
+  let minStartAfterLeave: string | undefined;
+
+if (
+  requestedStart &&
+  requestedEnd &&
+  !isWave
+) {
+  minStartAfterLeave =
+    await this.getMinStartAfterPartialLeave(
+      doctorId,
+      requestedDate,
+      requestedStart,
+      requestedEnd
+    );
+}
+
+if (minStartAfterLeave) {
+
+  // First try same-day slot after leave ends
+  const afterLeaveSlot =
+   (today.slots as StreamSlot[])
+    .filter(s => s.available)
+    .find(
+      s =>
+      this.toMinutes(s.start) >=
+      this.toMinutes(minStartAfterLeave)
+    );
+
+  if (afterLeaveSlot) {
+    return {
+      date: requestedDate,
+      start: afterLeaveSlot.start,
+      end: afterLeaveSlot.end
+    };
+  }
+
+  // No same-day slot exists after leave
+  // Search future days
+  const next =
+   await this.getSlotsWithNextAvailable(
+      doctorId,
+      this.addDays(requestedDate,1), // start tomorrow
+      30
+   );
+
+  if (
+    next &&
+    next.available_slots.length
+  ) {
+
+    const first =
+      next.available_slots[0];
+
+    return {
+      date: next.date,
+      start: first.start,
+      end: first.end
+    };
+  }
+
+  throw new BadRequestException(
+    'No future slots available'
+  );
+}
+
   // ---------------------------------
   // exact requested slot
   // ---------------------------------
@@ -174,12 +257,16 @@ async findBestAvailableSlot(
 
   if (!isWave) {
 
-    const sameDayOther =
-      (today.slots as StreamSlot[])
-      .find(
-        s => s.available,
-      );
-
+const sameDayOther =
+ (today.slots as StreamSlot[])
+   .filter(s => s.available)
+   .filter(s =>
+      !minStartAfterLeave ||
+      this.toMinutes(s.start) >= this.toMinutes(minStartAfterLeave)
+   )
+   .sort((a,b)=>
+      this.toMinutes(a.start)-this.toMinutes(b.start)
+   )[0];
     if (sameDayOther) {
 
       return {
@@ -244,6 +331,178 @@ async findBestAvailableSlot(
     end: first.end,
   };
 }
+private getTodayDate(): string {
+  const today = new Date();
+
+  const year = today.getFullYear();
+
+  const month = String(
+    today.getMonth() + 1
+  ).padStart(2,'0');
+
+  const day = String(
+    today.getDate()
+  ).padStart(2,'0');
+
+  return `${year}-${month}-${day}`;
+}
+
+private async afterLeaveSlotAvailable(
+ doctorId:number,
+ date:string
+):Promise<boolean>{
+
+ const leave =
+  await this.doctorLeaveRepo.findOne({
+    where:{
+      doctor:{id:doctorId},
+      startDate:date,
+      isFullDay:false
+    }
+ });
+ console.log("12:",leave)
+
+ const consulting =
+  await this.consultingRepo.findOne({
+    where:{
+      doctor:{id:doctorId}
+    }
+ });
+
+ if(!consulting) return false;
+
+ const slotDuration=
+   consulting.slotDuration;
+
+ const toMinutes=(t:string)=>{
+   const [h,m]=t.split(':').map(Number);
+   return h*60+m;
+ };
+
+ const consultStart=
+   toMinutes(consulting.startTime);
+
+ const consultEnd=
+   toMinutes(consulting.endTime);
+
+ // current time if booking today
+ const now = new Date();
+
+ const currentMinutes=
+   now.getHours()*60+
+   now.getMinutes();
+
+ let availableSlots:number[]=[];
+
+ // generate all slots
+ for(
+   let t=consultStart;
+   t+slotDuration<=consultEnd;
+   t+=slotDuration
+ ){
+   availableSlots.push(t);
+ }
+
+ // remove expired slots
+ if(date===this.getTodayDate()){
+   availableSlots=
+    availableSlots.filter(
+      s => s > currentMinutes
+    );
+ }
+
+ // remove slots inside leave
+ if(leave){
+   const leaveStart=
+    toMinutes(leave.startTime!);
+
+   const leaveEnd=
+    toMinutes(leave.endTime!);
+
+   availableSlots=
+    availableSlots.filter(
+      s =>
+       s < leaveStart ||
+       s >= leaveEnd
+    );
+ }
+
+ return availableSlots.length>0;
+}
+  private async getNextDateIfOnFullDayLeave(
+  doctorId:number,
+  date:string
+){
+  const leaves =
+   await this.getDoctorLeavesForDate(
+      doctorId,
+      date
+   );
+
+  const fullDay =
+   leaves.filter(
+      l => l.isFullDay
+   );
+
+  // no full-day leave
+  if(fullDay.length===0){
+    console.log("ok1")
+
+    const hasSlots =
+      await this.afterLeaveSlotAvailable(
+         doctorId,
+         date
+      );
+    
+    if(hasSlots){
+      console.log("ok2")
+      return date;
+    }else{
+      return this.addDays(date,1); // next day
+    }
+  }
+
+  // full-day leave exists
+  const latestEndDate =
+    fullDay
+      .map(l=>l.endDate)
+      .sort()
+      .at(-1);
+
+  if(!latestEndDate){
+    return date;
+  }
+
+  return this.addDays(
+    latestEndDate,
+    1
+  );
+}
+
+  private async getMinStartAfterPartialLeave(
+    doctorId: number,
+    date: string,
+    requestedStart: string,
+    requestedEnd: string,
+  ) {
+    const leaves = await this.getDoctorLeavesForDate(doctorId, date);
+    const partialLeaves = leaves.filter((l) => !l.isFullDay);
+    if (partialLeaves.length === 0) return undefined;
+
+    const overlaps = partialLeaves.filter((l) =>
+      this.slotOverlapsLeave(requestedStart, requestedEnd, l),
+    );
+    if (overlaps.length === 0) return undefined;
+
+    const latestLeaveEnd = overlaps
+      .map((l) => (l.endTime ? this.normalizeTime(l.endTime) : undefined))
+      .filter((t): t is string => Boolean(t))
+      .sort()
+      .at(-1);
+
+    if (!latestLeaveEnd) return undefined;
+    return latestLeaveEnd > requestedStart ? latestLeaveEnd : requestedStart;
+  }
 async bookSlot(
  dto: CreateAppointmentDto
 ) {
@@ -251,6 +510,7 @@ async bookSlot(
  return this.dataSource.transaction(
   async (manager) => {
    const {doctor_id,appointment_date,start_time,end_time} = dto;
+   console.log("log id:",doctor_id)
   const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
   const now = new Date();
 if (appointmentDateTime < now) {
@@ -277,6 +537,7 @@ if (appointmentDateTime < now) {
       doctor_id,
       appointment_date,
     );
+    console.log("6:", current)
 
    const dateAvailability = await this.getDateAvailability(
      doctor_id,
@@ -307,13 +568,33 @@ if (appointmentDateTime < now) {
      requestedAvailable = false;
    }
 if (!requestedAvailable) {
+  if (dateAvailability.reason === 'CONSULTING_OVER') {
+    const nextDay = this.addDays(appointment_date, 1);
+    const next = await this.getSlotsWithNextAvailable(doctor_id, nextDay, undefined);
+    if (!next || !next.available_slots.length) {
+      throw new BadRequestException(next?.message || 'No future slots available');
+    }
+    const first = next.available_slots[0];
+    const tokenNo = await this.getTokenNummber(doctor_id, next.date);
+    const reportTime = await this.getRepporting(doctor_id, first.start);
+    return {
+      booked: false,
+      message: this.formatNextAvailableMessage('CONSULTING_OVER', next.date, first.start),
+      next_available_date: next.date,
+      next_available_start: first.start,
+      next_available_end: first.end,
+      estimatedTokenNo: tokenNo,
+      estimatedReportingTime: reportTime,
+    };
+  }
+
   const best = await this.findBestAvailableSlot(
     doctor_id,
     appointment_date,
     start_time,
     end_time,
   );
-
+console.log("be:",best)
   const tokenNo = await this.getTokenNummber(doctor_id, best.date);
   const reportTime = await this.getRepporting(doctor_id, best.start);
   const reason =
@@ -324,10 +605,11 @@ if (!requestedAvailable) {
           appointment_date,
           current.is_working_day,
         );
-
+console.log("hi",best.date)
   return {
     booked: false,
     message: this.formatNextAvailableMessage(reason, best.date, best.start),
+    re:"ok",
     next_available_date: best.date,
     next_available_start: best.start,
     next_available_end: best.end,
@@ -751,7 +1033,7 @@ if (existing) {
     summary: SlotSummary;
   }> {
     await this.cleanupExpiredReservations();
-
+    console.log("1")
     const clinicOpen = await this.isClinicOpenForDoctor(doctorId, date);
     if (!clinicOpen.isOpen) {
       return {
@@ -761,8 +1043,10 @@ if (existing) {
         summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
       };
     }
-
+     console.log("2:",date)
+  
     if (await this.isDoctorOnLeaveFullDay(doctorId, date)) {
+      console.log("3")
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
@@ -776,6 +1060,7 @@ if (existing) {
         date,
       },
     });
+    console.log("ecust",custom)
 
     if (custom) {
       let slots = await this.handleStream(
@@ -787,7 +1072,7 @@ if (existing) {
       );
 
       slots = await this.applyDoctorLeaveToStreamSlots(doctorId, date, slots);
-
+      console.log("5",slots)
       return {
         scheduling_type: SchedulingType.STREAM,
         slots,
@@ -802,11 +1087,13 @@ if (existing) {
       where: { doctor: { id: doctorId } },
       relations: ['days'],
     });
+    console.log("consul:",consultingList)
+
 
     const matchedList = consultingList.filter((c) =>
       c.days?.some((d) => d.day === dayName),
     );
-
+     console.log("7:",matchedList)
     if (matchedList.length === 0) {
       return {
         scheduling_type: SchedulingType.STREAM,
@@ -1102,7 +1389,7 @@ if (existing) {
   private async isDoctorOnLeaveFullDay(doctorId: number, date: string) {
     const qb = this.doctorLeaveRepo
       .createQueryBuilder('l')
-      .where('l.doctorId = :doctorId', { doctorId })
+      .where('l.doctor = :doctorId', { doctorId })
       .andWhere(':date BETWEEN l.startDate AND l.endDate', { date })
       .andWhere('l.isFullDay = true');
 
@@ -1118,7 +1405,32 @@ if (existing) {
     if (leaves.length === 0) return slots;
     if (leaves.some((l) => l.isFullDay)) return [];
 
-    return slots.filter((s) => !leaves.some((l) => this.slotOverlapsLeave(s.start, s.end, l)));
+   return slots.filter((s) => {
+
+  const blocked = leaves.some((l) => {
+    if (l.isFullDay) return true;
+
+    if (!l.startTime || !l.endTime) {
+      return false;
+    }
+
+    const slotStart = this.toMinutes(this.normalizeTime(s.start));
+    const slotEnd   = this.toMinutes(this.normalizeTime(s.end));
+
+    const leaveStart = this.toMinutes(
+      this.normalizeTime(String(l.startTime))
+    );
+
+    const leaveEnd = this.toMinutes(
+      this.normalizeTime(String(l.endTime))
+    );
+
+    return slotStart < leaveEnd &&
+           slotEnd > leaveStart;
+  });
+
+  return !blocked;
+});
   }
 
   private async applyDoctorLeaveToWaveSlots(
@@ -1136,9 +1448,10 @@ if (existing) {
   private async getDoctorLeavesForDate(doctorId: number, date: string) {
     return this.doctorLeaveRepo
       .createQueryBuilder('l')
-      .where('l.doctorId = :doctorId', { doctorId })
+      .where('l.doctor = :doctorId', { doctorId })
       .andWhere(':date BETWEEN l.startDate AND l.endDate', { date })
       .getMany();
+      
   }
 
   private slotOverlapsLeave(start: string, end: string, leave: DoctorLeave) {

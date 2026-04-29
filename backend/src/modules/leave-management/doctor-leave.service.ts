@@ -19,7 +19,8 @@ export class DoctorLeaveService {
     const doctor = await this.doctorRepo.findOne({ where: { id: doctorId } });
     if (!doctor) throw new BadRequestException('Invalid doctor');
 
-    if (dto.endDate < dto.startDate) {
+    const endDate = dto.endDate ?? dto.startDate;
+    if (endDate < dto.startDate) {
       throw new BadRequestException('endDate must be on/after startDate');
     }
 
@@ -36,7 +37,7 @@ export class DoctorLeaveService {
       this.leaveRepo.create({
         doctor: { id: doctorId } as any,
         startDate: dto.startDate,
-        endDate: dto.endDate,
+        endDate,
         isFullDay: dto.isFullDay,
         startTime: dto.isFullDay ? null : dto.startTime,
         endTime: dto.isFullDay ? null : dto.endTime,
@@ -67,4 +68,3 @@ export class DoctorLeaveService {
     return { deleted: true };
   }
 }
-
