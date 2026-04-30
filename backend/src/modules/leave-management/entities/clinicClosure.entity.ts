@@ -31,15 +31,17 @@ export class ClinicClosure {
   })
   type: ClosureType;
 
-  @Column({
-    type: 'timestamp'
-  })
-  startDateTime: Date;
+  @Column({ type: 'date' })
+  startDate: string;
 
-  @Column({
-    type: 'timestamp',nullable:true
-  })
-  endDateTime: Date;
+  @Column({ type: 'date', nullable: true })
+  endDate?: string;
+
+  @Column({ type: 'time', nullable: true })
+  startTime?: string;
+
+  @Column({ type: 'time', nullable: true })
+  endTime?: string;
 
   @Column({
     nullable: true

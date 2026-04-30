@@ -1182,5 +1182,18 @@ describe('AppointmentsService', () => {
 
       expect(result).toEqual({ isOpen: false });
     });
+
+    it('treats time-window closure as open for the day', async () => {
+      doctorRepoMock.findOne.mockResolvedValue({ id: 1, clinic: { id: 99 } });
+      clinicScheduleRepoMock.findOne.mockResolvedValue({ isOpen: true });
+      clinicClosureRepoMock.createQueryBuilder.mockImplementation(() => ({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+      }));
+
+      const result = await (service as any).isClinicOpenForDoctor(1, '2026-05-28');
+      expect(result).toEqual({ isOpen: true });
+    });
   });
 });

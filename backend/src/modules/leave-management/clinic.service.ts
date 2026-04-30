@@ -123,19 +123,38 @@ export class ClinicService {
     const clinic = await this.getMyClinic(doctorId);
     if (!clinic) throw new NotFoundException('Clinic profile not found');
 
-    const start = new Date(dto.startDateTime);
-    const end = new Date(dto.endDateTime);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      throw new BadRequestException('Invalid startDateTime/endDateTime');
+    const startDate = dto.startDate;
+    const endDate = dto.endDate ?? dto.startDate;
+
+    const startDateParsed = new Date(`${startDate}T00:00:00.000Z`);
+    const endDateParsed = new Date(`${endDate}T00:00:00.000Z`);
+    if (
+      Number.isNaN(startDateParsed.getTime()) ||
+      Number.isNaN(endDateParsed.getTime())
+    ) {
+      throw new BadRequestException('Invalid startDate/endDate');
     }
-    if (end <= start) throw new BadRequestException('endDateTime must be after startDateTime');
+    if (endDate < startDate) {
+      throw new BadRequestException('endDate must be on/after startDate');
+    }
+
+    if ((dto.startTime && !dto.endTime) || (!dto.startTime && dto.endTime)) {
+      throw new BadRequestException('startTime and endTime must be provided together');
+    }
+    if (dto.startTime && dto.endTime) {
+      if (dto.endTime <= dto.startTime) {
+        throw new BadRequestException('endTime must be after startTime');
+      }
+    }
 
     const closure = await this.closureRepo.save(
       this.closureRepo.create({
         clinic,
         type: dto.type,
-        startDateTime: start,
-        endDateTime: end,
+        startDate,
+        endDate: dto.endDate ?? undefined,
+        startTime: dto.startTime ?? undefined,
+        endTime: dto.endTime ?? undefined,
         reason: dto.reason ?? undefined,
       }),
     );
@@ -148,7 +167,7 @@ export class ClinicService {
     if (!clinic) throw new NotFoundException('Clinic profile not found');
     return this.closureRepo.find({
       where: { clinic: { id: clinic.id } },
-      order: { startDateTime: 'DESC' },
+      order: { startDate: 'DESC' },
     });
   }
 

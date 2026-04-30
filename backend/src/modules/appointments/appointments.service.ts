@@ -1043,6 +1043,7 @@ if (existing) {
         summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
       };
     }
+    const clinicId = await this.getClinicIdForDoctor(doctorId);
      console.log("2:",date)
   
     if (await this.isDoctorOnLeaveFullDay(doctorId, date)) {
@@ -1072,6 +1073,9 @@ if (existing) {
       );
 
       slots = await this.applyDoctorLeaveToStreamSlots(doctorId, date, slots);
+      if (clinicId) {
+        slots = await this.applyClinicClosuresToStreamSlots(clinicId, date, slots);
+      }
       console.log("5",slots)
       return {
         scheduling_type: SchedulingType.STREAM,
@@ -1119,6 +1123,9 @@ if (existing) {
           date,
         );
         slots = await this.applyDoctorLeaveToStreamSlots(doctorId, date, slots);
+        if (clinicId) {
+          slots = await this.applyClinicClosuresToStreamSlots(clinicId, date, slots);
+        }
         results.push(...slots);
       }
 
@@ -1131,7 +1138,9 @@ if (existing) {
           date,
         );
         const filtered = await this.applyDoctorLeaveToWaveSlots(doctorId, date, slots);
-        results.push(...filtered);
+        const finalSlots =
+          clinicId ? await this.applyClinicClosuresToWaveSlots(clinicId, date, filtered) : filtered;
+        results.push(...finalSlots);
       }
     }
     results.sort((a, b) => a.start.localeCompare(b.start));
@@ -1381,17 +1390,74 @@ const reason = candidateAvailability.reason;
     }
     if (!schedule.isOpen) return { isOpen: false as const };
 
-    const startOfDay = new Date(`${date}T00:00:00.000Z`);
-    const endOfDay = new Date(`${date}T23:59:59.999Z`);
-
+    // Full-day closures: startDate <= date <= (endDate or startDate) AND no time window set
     const closureCount = await this.clinicClosureRepo
       .createQueryBuilder('c')
       .where('c.clinicId = :clinicId', { clinicId })
-      .andWhere('c.startDateTime <= :endOfDay', { endOfDay })
-      .andWhere('c.endDateTime >= :startOfDay', { startOfDay })
+      .andWhere(':date >= c.startDate', { date })
+      .andWhere(':date <= COALESCE(c.endDate, c.startDate)', { date })
+      .andWhere('c.startTime IS NULL AND c.endTime IS NULL')
       .getCount();
 
     return { isOpen: closureCount === 0 } as const;
+  }
+
+  private async getClinicIdForDoctor(doctorId: number) {
+    const doctor = await this.doctorRepo.findOne({
+      where: { id: doctorId },
+      relations: ['clinic'],
+    });
+    return doctor?.clinic?.id ?? null;
+  }
+
+  private async getClinicClosuresForDate(clinicId: number, date: string) {
+    return this.clinicClosureRepo
+      .createQueryBuilder('c')
+      .where('c.clinicId = :clinicId', { clinicId })
+      .andWhere(':date >= c.startDate', { date })
+      .andWhere(':date <= COALESCE(c.endDate, c.startDate)', { date })
+      .getMany();
+  }
+
+  private slotOverlapsClosure(
+    slotStart: string,
+    slotEnd: string,
+    closure: ClinicClosure,
+  ) {
+    if (!closure.startTime || !closure.endTime) return true;
+    const sStart = this.toMinutes(this.normalizeTime(slotStart));
+    const sEnd = this.toMinutes(this.normalizeTime(slotEnd));
+    const cStart = this.toMinutes(this.normalizeTime(String(closure.startTime)));
+    const cEnd = this.toMinutes(this.normalizeTime(String(closure.endTime)));
+    return sStart < cEnd && sEnd > cStart;
+  }
+
+  private async applyClinicClosuresToStreamSlots(
+    clinicId: number,
+    date: string,
+    slots: StreamSlot[],
+  ) {
+    const closures = await this.getClinicClosuresForDate(clinicId, date);
+    if (closures.length === 0) return slots;
+    if (closures.some((c) => !c.startTime || !c.endTime)) return [];
+
+    return slots.filter(
+      (s) => !closures.some((c) => this.slotOverlapsClosure(s.start, s.end, c)),
+    );
+  }
+
+  private async applyClinicClosuresToWaveSlots(
+    clinicId: number,
+    date: string,
+    slots: WaveSlot[],
+  ) {
+    const closures = await this.getClinicClosuresForDate(clinicId, date);
+    if (closures.length === 0) return slots;
+    if (closures.some((c) => !c.startTime || !c.endTime)) return [];
+
+    return slots.filter(
+      (s) => !closures.some((c) => this.slotOverlapsClosure(s.start, s.end, c)),
+    );
   }
 
   private async isDoctorOnLeaveFullDay(doctorId: number, date: string) {
