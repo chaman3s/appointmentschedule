@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { Clinic } from './entities/Clinic.entity';
 import { Doctors } from '../doctors/entity/doctor.entity';
 import { UpsertClinicProfileDto } from './dto/upsert-clinic-profile.dto';
+import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
 import { ClinicSchedule } from './entities/clinicSchedule.entity';
 import { UpsertClinicScheduleDto } from './dto/upsert-clinic-schedule.dto';
 import { ClinicClosure } from './entities/clinicClosure.entity';
@@ -49,7 +50,7 @@ export class ClinicService {
     return this.getMyClinic(doctorId);
   }
 
-  async updateMyClinic(doctorId: number, dto: UpsertClinicProfileDto) {
+  async updateMyClinic(doctorId: number, dto: UpdateClinicProfileDto) {
     const doctor = await this.doctorRepo.findOne({
       where: { id: doctorId },
       relations: ['clinic'],
@@ -57,7 +58,13 @@ export class ClinicService {
     if (!doctor) throw new NotFoundException('Doctor not found');
     if (!doctor.clinic?.id) throw new NotFoundException('Clinic profile not found');
 
-    await this.clinicRepo.update(doctor.clinic.id, { ...dto });
+    const updates = Object.fromEntries(
+      Object.entries(dto ?? {}).filter(([, value]) => value !== undefined),
+    );
+
+    if (Object.keys(updates).length > 0) {
+      await this.clinicRepo.update(doctor.clinic.id, updates);
+    }
     return this.getMyClinic(doctorId);
   }
 

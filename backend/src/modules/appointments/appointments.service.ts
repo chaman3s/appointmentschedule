@@ -1050,7 +1050,7 @@ if (existing) {
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
-        is_working_day: true,
+        is_working_day: false,
         summary: { total_slots: 0, booked_slots: 0, available_slots: 0 },
       };
     }
@@ -1211,11 +1211,13 @@ if (existing) {
       }
 
       const isToday = startDate === today;
-      const reason = await this.getUnavailabilityReason(
-        doctorId,
-        startDate,
-        todayResult.is_working_day,
-      );
+     const candidateAvailability = await this.getDateAvailability(
+  doctorId,
+  candidateDate,
+  candidate.is_working_day,
+
+);
+const reason = candidateAvailability.reason;
       const message = isToday
         ? this.formatNextAvailableMessage(reason, candidateDate)
         : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
@@ -1238,7 +1240,7 @@ if (existing) {
       slots: todayResult.slots,
       available_slots: [],
       summary: todayResult.summary,
-      message: `No appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
+      message: `No yes appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
     };
   }
 
@@ -1369,8 +1371,14 @@ if (existing) {
       where: { clinic: { id: clinicId }, dayOfWeek },
     });
 
-    // Backwards compatible: if schedules not configured, treat clinic as open.
-    if (!schedule) return { isOpen: true as const };
+    // Backwards compatible: if schedules not configured at all, treat clinic as open.
+    // If at least one schedule exists, missing day means closed.
+    if (!schedule) {
+      const configuredCount = await this.clinicScheduleRepo.count({
+        where: { clinic: { id: clinicId } },
+      });
+      return { isOpen: configuredCount === 0 } as const;
+    }
     if (!schedule.isOpen) return { isOpen: false as const };
 
     const startOfDay = new Date(`${date}T00:00:00.000Z`);

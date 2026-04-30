@@ -101,6 +101,7 @@ describe('AppointmentsService', () => {
 
     clinicScheduleRepoMock = {
       findOne: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(0),
     };
 
     clinicClosureRepoMock = {
@@ -1168,6 +1169,18 @@ describe('AppointmentsService', () => {
   describe('Counts', () => {
     it('contains 50+ tests in this spec file', () => {
       expect(true).toBe(true);
+    });
+  });
+
+  describe('Clinic schedules missing day', () => {
+    it('treats missing day as closed when any schedules configured', async () => {
+      doctorRepoMock.findOne.mockResolvedValue({ id: 1, clinic: { id: 99 } });
+      clinicScheduleRepoMock.findOne.mockResolvedValue(null);
+      clinicScheduleRepoMock.count.mockResolvedValue(1);
+
+      const result = await (service as any).isClinicOpenForDoctor(1, '2026-05-28');
+
+      expect(result).toEqual({ isOpen: false });
     });
   });
 });

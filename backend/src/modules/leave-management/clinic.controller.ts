@@ -16,6 +16,7 @@ import { Roles } from '../common/decorator/roles.decorator';
 import { RolesGuard } from '../common/Guard/roles.guard';
 import { ClinicService } from './clinic.service';
 import { UpsertClinicProfileDto } from './dto/upsert-clinic-profile.dto';
+import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
 import { UpsertClinicScheduleDto } from './dto/upsert-clinic-schedule.dto';
 import { CreateClinicClosureDto } from './dto/create-clinic-closure.dto';
 
@@ -40,7 +41,7 @@ export class ClinicController {
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('doctor')
   @Patch('profile')
-  updateProfile(@Req() req, @Body() dto: UpsertClinicProfileDto) {
+  updateProfile(@Req() req, @Body() dto: UpdateClinicProfileDto) {
     return this.clinicService.updateMyClinic(Number(req.user.id), dto);
   }
 

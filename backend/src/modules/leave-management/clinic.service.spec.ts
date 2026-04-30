@@ -68,6 +68,14 @@ describe('ClinicService', () => {
         service.updateMyClinic(1, { name: 'A' } as any),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    it('does not call update when body empty', async () => {
+      doctorRepoMock.findOne.mockResolvedValue({ id: 1, clinic: { id: 10 } });
+      jest.spyOn(service, 'getMyClinic').mockResolvedValue({ id: 10 } as any);
+
+      await service.updateMyClinic(1, {} as any);
+
+      expect(clinicRepoMock.update).not.toHaveBeenCalled();
+    });
   });
 });
-
