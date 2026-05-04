@@ -16,6 +16,7 @@ import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ConfirmAppointmentDto } from './dto/confirm-appointment.dto';
 import { HoldNextAppointmentDto } from './dto/hold-next-appointment.dto';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { Jwtguard } from '../common/Guard/jwt.guard';
 import { Roles } from '../common/decorator/roles.decorator';
 import { RolesGuard } from '../common/Guard/roles.guard';
@@ -143,6 +144,21 @@ export class AppointmentsController {
       body.date,
       body.start_time,
       body.end_time,
+    );
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Patch(':id/cancel')
+  cancelAppointment(
+    @Param('id', ParseIntPipe) appointmentId: number,
+    @Req() req,
+    @Body() dto: CancelAppointmentDto,
+  ) {
+    return this.appointmentsService.cancelAppointment(
+      appointmentId,
+      req.user.id,
+      dto?.reason,
     );
   }
 }

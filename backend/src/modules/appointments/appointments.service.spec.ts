@@ -715,6 +715,18 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow('Cannot book appointment in the past');
     });
 
+    it('rejects appointments beyond 7 days in advance', async () => {
+      await expect(
+        service.bookSlot({
+          doctor_id: 1,
+          user_id: 1,
+          appointment_date: '2030-01-23',
+          start_time: '10:00',
+          end_time: '10:15',
+        } as any),
+      ).rejects.toThrow('Appointments can only be booked up to 7 days in advance');
+    });
+
     it('rejects when user already booked same day', async () => {
       appointmentRepoMock.findOne.mockResolvedValueOnce({
         appointment_id: 22,
@@ -1163,6 +1175,87 @@ describe('AppointmentsService', () => {
 
       expect(result.booked).toBe(false);
       expect(result.next_available_start).toBe(expectedStart);
+    });
+  });
+
+  describe('cancelAppointment()', () => {
+    const managerMock = {
+      query: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      findOne: jest.fn(),
+    };
+
+    beforeEach(() => {
+      dataSourceMock.transaction.mockImplementation(async (cb: any) =>
+        cb(managerMock),
+      );
+      managerMock.query.mockReset();
+      managerMock.update.mockClear();
+      managerMock.findOne.mockReset();
+    });
+
+    it('throws when appointment not found', async () => {
+      managerMock.query.mockResolvedValueOnce([undefined]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Appointment not found',
+      );
+    });
+
+    it('throws when already cancelled', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 1, user_id: 2, status: AppointmentStatus.CANCELLED },
+      ]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Appointment already cancelled',
+      );
+    });
+
+    it('throws when completed', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 1, user_id: 2, status: AppointmentStatus.COMPLETED },
+      ]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Completed appointments cannot be cancelled',
+      );
+    });
+
+    it('cancels booked appointment', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 10, user_id: 20, status: AppointmentStatus.BOOKED },
+      ]);
+      managerMock.findOne.mockResolvedValueOnce({
+        appointment_id: 10,
+        status: AppointmentStatus.CANCELLED,
+      });
+
+      const result = await service.cancelAppointment(10, 20, 'not coming');
+
+      expect(managerMock.update).toHaveBeenCalledWith(
+        Appointment,
+        { appointment_id: 10 },
+        { status: AppointmentStatus.CANCELLED, expires_at: null },
+      );
+      expect(result.status).toBe(AppointmentStatus.CANCELLED);
+    });
+  });
+
+  describe('holdNextSlot()', () => {
+    it('rejects when requested date beyond 7 days in advance', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(Date.parse('2030-01-15T12:00:00.000Z'));
+
+      await expect(
+        service.holdNextSlot(
+          {
+            doctor_id: 1,
+            appointment_date: '2030-01-23',
+          } as any,
+          1,
+        ),
+      ).rejects.toThrow('Appointments can only be booked up to 7 days in advance');
     });
   });
 
