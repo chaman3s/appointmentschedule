@@ -26,7 +26,7 @@ export class DoctorLeaveController {
   create(@Req() req, @Body() dto: CreateDoctorLeaveDto) {
     return this.doctorLeaveService.createForMe(Number(req.user.id), dto);
   }
-
+  
   @UseGuards(Jwtguard, RolesGuard)
   @Roles('doctor')
   @Get()

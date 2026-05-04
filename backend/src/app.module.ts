@@ -12,15 +12,29 @@ import { ConsultingTimeModule } from './modules/consulting-time/consulting-time.
 import { UserDoctorModule } from './modules/userdoctor/user-doctor.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { LeaveManagementModule } from './modules/leave-management/leave-management.module';
+import { HospitalModule } from './modules/hospital/hospital.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { ThrottlerModule } from '@nestjs/throttler';
+
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60,
+          limit: 10,
+        },
+      ],
+      // ✅ makes it available in ALL modules
+    }),
 
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => getDatabaseConfig(config),
     }),
+
     AuthModule,
     UserModule,
     DoctorModule,
@@ -29,7 +43,9 @@ import { LeaveManagementModule } from './modules/leave-management/leave-manageme
     UserDoctorModule,
     AppointmentsModule,
     LeaveManagementModule,
+    HospitalModule,
+    WhatsappModule,
   ],
-  controllers: [AppController], providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}
+

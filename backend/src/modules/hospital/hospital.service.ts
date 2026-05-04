@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-
 import { CreateHospitalDto } from './dto/create-hospital.dto';
 import { UpdateHospitalDto } from './dto/update-hospital.dto';
 import { Hospital } from './entities/hospital.entity';
@@ -21,8 +20,8 @@ export class HospitalService {
     private readonly doctorRepo: Repository<Doctors>,
   ) {}
 
-  async create(dto: CreateHospitalDto) {
-    const { name, address, doctorId } = dto;
+  async create(dto: CreateHospitalDto,doctorId: number) {
+    const { name, address } = dto;
     const doctor = await this.doctorRepo.findOne({
       where: { id: doctorId },
       relations: ['hospital'],

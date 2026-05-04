@@ -7,7 +7,8 @@ export class UpdateProfileDoctorDto {
     @IsOptional()
     @IsEmail()
     email?: string;
-
+    @IsOptional()
+    address?:string
     @IsOptional()
     @IsString()
     specialization?: string;

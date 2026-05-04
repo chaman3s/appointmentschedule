@@ -35,6 +35,8 @@ export class Doctors {
 
  @Column({ select: false })
  password: string;
+ @Column ({nullable:true})
+ address:string;
 
  @Column({ default: false })
  isProfileCompleted: boolean;

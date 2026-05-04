@@ -25,7 +25,7 @@ export class DoctorController {
         return this.doctorServices.getDoctorProfile(req.user.id); // ✅ FIXED
     }
 
-    @UseGuards(Jwtguard, RolesGuard)
+@UseGuards(Jwtguard, RolesGuard)
     @Roles('doctor')
     @Post('profile')
     createOrUpdate(
@@ -46,4 +46,4 @@ export class DoctorController {
     ) {
         return this.doctorServices.getDoctors(specialization, search);
     }
-}
+}    
