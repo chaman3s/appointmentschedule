@@ -249,23 +249,36 @@ const consulting_type = 'ONLINE';
     );
   }
   async handleCancel(userId: number, phone: string) {
-    const appointments =
-      await this.appointmentService.getUserAppointments(userId);
+  const appointments =
+    await this.appointmentService.getUserAppointments(userId);
 
-    if (!appointments.length) {
-      return this.reply(phone, 'No appointments found');
-    }
-
-    const latest = appointments[0];
-
-    await this.appointmentService.cancelAppointment(
-      latest.appointment_id,
-      userId,
-      'WhatsApp cancel',
-    );
-
-    return this.reply(phone, ' Appointment cancelled successfully');
+  if (!appointments.length) {
+    return this.reply(phone, '❌ No appointments found');
   }
+
+  // ✅ pick only active (not cancelled)
+  const active = appointments.find(
+    (a) => a.status !== 'CANCELLED'
+  );
+
+  if (!active) {
+    return this.reply(
+      phone,
+      '❌ All your appointments are already cancelled'
+    );
+  }
+
+  await this.appointmentService.cancelAppointment(
+    active.appointment_id,
+    userId,
+    'WhatsApp cancel',
+  );
+
+  return this.reply(
+    phone,
+    `✅ Appointment cancelled\n📅 ${active.appointment_date}`
+  );
+}
   parseDate(msg: string): string {
     if (msg.includes('tomorrow')) {
       const d = new Date();
