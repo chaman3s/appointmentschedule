@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { WhatsappController } from './whatsapp.controller';
 import { WhatsappService } from './whatsapp.service';
 
@@ -8,8 +9,16 @@ describe('WhatsappController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WhatsappController],
-      providers: [WhatsappService],
-    }).compile();
+      providers: [
+        {
+          provide: WhatsappService,
+          useValue: {},
+        },
+      ],
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<WhatsappController>(WhatsappController);
   });

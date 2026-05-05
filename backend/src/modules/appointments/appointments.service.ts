@@ -609,7 +609,6 @@ if (!requestedAvailable) {
   return {
     booked: false,
     message: this.formatNextAvailableMessage(reason, best.date, best.start),
-    re:"ok",
     next_available_date: best.date,
     next_available_start: best.start,
     next_available_end: best.end,
@@ -1270,13 +1269,13 @@ if (existing) {
       }
 
       const isToday = startDate === today;
-     const candidateAvailability = await this.getDateAvailability(
-  doctorId,
-  candidateDate,
-  candidate.is_working_day,
-
-);
-const reason = candidateAvailability.reason;
+      const reason = isToday
+        ? await this.getUnavailabilityReason(
+            doctorId,
+            startDate,
+            todayResult.is_working_day,
+          )
+        : null;
       const message = isToday
         ? this.formatNextAvailableMessage(reason, candidateDate)
         : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
@@ -1299,7 +1298,7 @@ const reason = candidateAvailability.reason;
       slots: todayResult.slots,
       available_slots: [],
       summary: todayResult.summary,
-      message: `No yes appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
+      message: `No appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
     };
   }
 
