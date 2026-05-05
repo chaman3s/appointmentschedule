@@ -24,6 +24,8 @@ import { RolesGuard } from '../common/Guard/roles.guard';
 @Controller('appointments')
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
+   @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
   @Get('slots/:doctorId')
   async getSlots(
     @Param('doctorId', ParseIntPipe) doctorId: number,
@@ -39,7 +41,8 @@ export class AppointmentsController {
 
     return this.appointmentsService.getAvailableSlots(doctorId, date);
   }
-
+ @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
   @Get('slots/next/:doctorId')
   async getSlotsWithNextAvailable(
     @Param('doctorId', ParseIntPipe) doctorId: number,
@@ -128,6 +131,7 @@ export class AppointmentsController {
   }
   @Patch('reschedule/:id')
   @UseGuards(Jwtguard)
+  @Roles('user')
   async reschedule(
     @Param('id', ParseIntPipe) id: number,
     @Req() req,
