@@ -4,13 +4,14 @@ import {
  Column,
  OneToMany,
  OneToOne,
+ ManyToOne,
  JoinColumn
 } from 'typeorm';
 
 import { Services } from './services.entity';
 import { ConsultingTime } from '../../consulting-time/entity/consultingTime.entity';
 import { Clinic } from '../../leave-management/entities/Clinic.entity';
-
+import { Hospital } from '../../hospital/entities/hospital.entity';
 @Entity('doctors')
 export class Doctors {
 
@@ -34,6 +35,8 @@ export class Doctors {
 
  @Column({ select: false })
  password: string;
+ @Column ({nullable:true})
+ address:string;
 
  @Column({ default: false })
  isProfileCompleted: boolean;
@@ -101,4 +104,7 @@ export class Doctors {
    ct => ct.doctor
  )
  consultingTimes: ConsultingTime[];
+
+@OneToOne(() => Hospital, (hospital) => hospital.doctor)
+hospital: Hospital;
 }

@@ -16,6 +16,7 @@ import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { ConfirmAppointmentDto } from './dto/confirm-appointment.dto';
 import { HoldNextAppointmentDto } from './dto/hold-next-appointment.dto';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { Jwtguard } from '../common/Guard/jwt.guard';
 import { Roles } from '../common/decorator/roles.decorator';
 import { RolesGuard } from '../common/Guard/roles.guard';
@@ -23,6 +24,8 @@ import { RolesGuard } from '../common/Guard/roles.guard';
 @Controller('appointments')
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
+   @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
   @Get('slots/:doctorId')
   async getSlots(
     @Param('doctorId', ParseIntPipe) doctorId: number,
@@ -38,7 +41,8 @@ export class AppointmentsController {
 
     return this.appointmentsService.getAvailableSlots(doctorId, date);
   }
-
+ @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
   @Get('slots/next/:doctorId')
   async getSlotsWithNextAvailable(
     @Param('doctorId', ParseIntPipe) doctorId: number,
@@ -86,7 +90,6 @@ export class AppointmentsController {
   @Post()
   book(@Req() req, @Body() dto: CreateAppointmentDto) {
     const userId = req.user.id;
-    console.log('id:', userId);
     return this.appointmentsService.bookSlot({
       ...dto,
       user_id: userId, // 🔐 override user_id
@@ -127,6 +130,7 @@ export class AppointmentsController {
   }
   @Patch('reschedule/:id')
   @UseGuards(Jwtguard)
+  @Roles('user')
   async reschedule(
     @Param('id', ParseIntPipe) id: number,
     @Req() req,
@@ -143,6 +147,21 @@ export class AppointmentsController {
       body.date,
       body.start_time,
       body.end_time,
+    );
+  }
+
+  @UseGuards(Jwtguard, RolesGuard)
+  @Roles('user')
+  @Patch(':id/cancel')
+  cancelAppointment(
+    @Param('id', ParseIntPipe) appointmentId: number,
+    @Req() req,
+    @Body() dto: CancelAppointmentDto,
+  ) {
+    return this.appointmentsService.cancelAppointment(
+      appointmentId,
+      req.user.id,
+      dto?.reason,
     );
   }
 }

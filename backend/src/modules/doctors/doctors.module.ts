@@ -6,6 +6,7 @@ import { ConsultingTime } from '../consulting-time/entity/consultingTime.entity'
 import { ConsultingDay } from '../consulting-time/entity/consultingDays.entity';
 import { DoctorServices } from './doctor.service';
 import { DoctorController } from './doctor.Controller';
+import { Hospital } from '../hospital/entities/hospital.entity';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DoctorController } from './doctor.Controller';
       Services,
       ConsultingTime,
       ConsultingDay,
+      Hospital,
     ]),
   ],
   providers: [DoctorServices],

@@ -63,8 +63,9 @@ type UnavailabilityReason =
   | null;
 
 const HOLD_MINUTES = 5;
-const HOLD_SEARCH_DAYS = 30;
+const HOLD_SEARCH_DAYS = 3;
 const NEXT_AVAILABILITY_DEFAULT_MAX_DAYS = 30;
+const MAX_BOOK_AHEAD_DAYS = 7;
 
 @Injectable()
 export class AppointmentsService implements OnModuleInit, OnModuleDestroy {
@@ -126,7 +127,6 @@ async findBestAvailableSlot(
     doctorId,
     requestedDate, 
   );
-  console.log("9:",leaveAdjustedDate)
   if (leaveAdjustedDate !== requestedDate) {
     const next = await this.getSlotsWithNextAvailable(
       doctorId,
@@ -360,7 +360,6 @@ private async afterLeaveSlotAvailable(
       isFullDay:false
     }
  });
- console.log("12:",leave)
 
  const consulting =
   await this.consultingRepo.findOne({
@@ -446,7 +445,6 @@ private async afterLeaveSlotAvailable(
 
   // no full-day leave
   if(fullDay.length===0){
-    console.log("ok1")
 
     const hasSlots =
       await this.afterLeaveSlotAvailable(
@@ -455,7 +453,6 @@ private async afterLeaveSlotAvailable(
       );
     
     if(hasSlots){
-      console.log("ok2")
       return date;
     }else{
       return this.addDays(date,1); // next day
@@ -510,18 +507,24 @@ async bookSlot(
  return this.dataSource.transaction(
   async (manager) => {
    const {doctor_id,appointment_date,start_time,end_time} = dto;
-   console.log("log id:",doctor_id)
-  const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
-  const now = new Date();
-if (appointmentDateTime < now) {
-  throw new BadRequestException(
-    'Cannot book appointment in the past'
-  );
-}
-   const existingSameDay =
-    await this.appointmentRepo.findOne({
-      where:{
-        user:{ id:dto.user_id },
+   const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
+   const now = new Date();
+ if (appointmentDateTime < now) {
+   throw new BadRequestException(
+     'Cannot book appointment in the past'
+   );
+ }
+
+ const maxAdvance = new Date(now.getTime() + MAX_BOOK_AHEAD_DAYS * 24 * 60 * 60 * 1000);
+ if (appointmentDateTime > maxAdvance) {
+   throw new BadRequestException(
+     `Appointments can only be booked up to ${MAX_BOOK_AHEAD_DAYS} days in advance`,
+   );
+ }
+    const existingSameDay =
+     await this.appointmentRepo.findOne({
+       where:{
+         user:{ id:dto.user_id },
         doctor:{ id:doctor_id },
         appointment_date,
         status: AppointmentStatus.BOOKED
@@ -537,7 +540,6 @@ if (appointmentDateTime < now) {
       doctor_id,
       appointment_date,
     );
-    console.log("6:", current)
 
    const dateAvailability = await this.getDateAvailability(
      doctor_id,
@@ -594,7 +596,6 @@ if (!requestedAvailable) {
     start_time,
     end_time,
   );
-console.log("be:",best)
   const tokenNo = await this.getTokenNummber(doctor_id, best.date);
   const reportTime = await this.getRepporting(doctor_id, best.start);
   const reason =
@@ -605,11 +606,9 @@ console.log("be:",best)
           appointment_date,
           current.is_working_day,
         );
-console.log("hi",best.date)
   return {
     booked: false,
     message: this.formatNextAvailableMessage(reason, best.date, best.start),
-    re:"ok",
     next_available_date: best.date,
     next_available_start: best.start,
     next_available_end: best.end,
@@ -725,6 +724,13 @@ const reportBefore = doctor?.reportBefore;
     const today = this.toDateString(new Date());
     const requestedDate = dto.appointment_date || today;
     const startDate = requestedDate < today ? today : requestedDate;
+    const maxBookDate = this.addDays(today, MAX_BOOK_AHEAD_DAYS);
+
+    if (startDate > maxBookDate) {
+      throw new BadRequestException(
+        `Appointments can only be booked up to ${MAX_BOOK_AHEAD_DAYS} days in advance`,
+      );
+    }
 
     const configuredMaxDays = Number(process.env.HOLD_NEXT_MAX_DAYS);
     const dtoMaxSearchDays = dto.max_search_days;
@@ -756,6 +762,9 @@ if (existing) {
 }
     for (let dayOffset = 0; dayOffset < searchDays; dayOffset += 1) {
       const date = this.addDays(startDate, dayOffset);
+      if (date > maxBookDate) {
+        break;
+      }
       const { scheduling_type, slots } = await this.getAvailableSlots(
         dto.doctor_id,
         date,
@@ -922,6 +931,53 @@ if (existing) {
       });
     });
   }
+
+  async cancelAppointment(
+    appointmentId: number,
+    userId: number,
+    _reason?: string,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      const [appointment] = await manager.query(
+        `SELECT * FROM appointments
+         WHERE appointment_id = $1 AND user_id = $2
+         FOR UPDATE`,
+        [appointmentId, userId],
+      );
+
+      if (!appointment) {
+        throw new NotFoundException('Appointment not found');
+      }
+
+      if (appointment.status === AppointmentStatus.CANCELLED) {
+        throw new BadRequestException('Appointment already cancelled');
+      }
+
+      if (appointment.status === AppointmentStatus.COMPLETED) {
+        throw new BadRequestException('Completed appointments cannot be cancelled');
+      }
+
+      if (
+        appointment.status !== AppointmentStatus.BOOKED &&
+        appointment.status !== AppointmentStatus.RESERVED
+      ) {
+        throw new BadRequestException(
+          'Only booked or reserved appointments can be cancelled',
+        );
+      }
+
+      await manager.update(
+        Appointment,
+        { appointment_id: appointmentId },
+        { status: AppointmentStatus.CANCELLED, expires_at: null },
+      );
+
+      return manager.findOne(Appointment, {
+        where: { appointment_id: appointmentId },
+        relations: ['doctor', 'patient', 'user'],
+      });
+    });
+  }
   async checkSlotAvailability(
     manager: EntityManager,
     doctorId: number,
@@ -1033,7 +1089,6 @@ if (existing) {
     summary: SlotSummary;
   }> {
     await this.cleanupExpiredReservations();
-    console.log("1")
     const clinicOpen = await this.isClinicOpenForDoctor(doctorId, date);
     if (!clinicOpen.isOpen) {
       return {
@@ -1044,10 +1099,8 @@ if (existing) {
       };
     }
     const clinicId = await this.getClinicIdForDoctor(doctorId);
-     console.log("2:",date)
   
     if (await this.isDoctorOnLeaveFullDay(doctorId, date)) {
-      console.log("3")
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
@@ -1061,7 +1114,6 @@ if (existing) {
         date,
       },
     });
-    console.log("ecust",custom)
 
     if (custom) {
       let slots = await this.handleStream(
@@ -1076,7 +1128,6 @@ if (existing) {
       if (clinicId) {
         slots = await this.applyClinicClosuresToStreamSlots(clinicId, date, slots);
       }
-      console.log("5",slots)
       return {
         scheduling_type: SchedulingType.STREAM,
         slots,
@@ -1091,13 +1142,11 @@ if (existing) {
       where: { doctor: { id: doctorId } },
       relations: ['days'],
     });
-    console.log("consul:",consultingList)
 
 
     const matchedList = consultingList.filter((c) =>
       c.days?.some((d) => d.day === dayName),
     );
-     console.log("7:",matchedList)
     if (matchedList.length === 0) {
       return {
         scheduling_type: SchedulingType.STREAM,
@@ -1220,13 +1269,13 @@ if (existing) {
       }
 
       const isToday = startDate === today;
-     const candidateAvailability = await this.getDateAvailability(
-  doctorId,
-  candidateDate,
-  candidate.is_working_day,
-
-);
-const reason = candidateAvailability.reason;
+      const reason = isToday
+        ? await this.getUnavailabilityReason(
+            doctorId,
+            startDate,
+            todayResult.is_working_day,
+          )
+        : null;
       const message = isToday
         ? this.formatNextAvailableMessage(reason, candidateDate)
         : `No appointments available on ${startDate}. Next available appointment is on ${candidateDate}.`;
@@ -1249,7 +1298,7 @@ const reason = candidateAvailability.reason;
       slots: todayResult.slots,
       available_slots: [],
       summary: todayResult.summary,
-      message: `No yes appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
+      message: `No appointments available in the next ${effectiveMaxDays} days. Please contact clinic.`,
     };
   }
 

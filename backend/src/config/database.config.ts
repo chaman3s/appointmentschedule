@@ -13,7 +13,7 @@ export const getDatabaseConfig = (
       type: 'postgres',
       url: databaseUrl,
       autoLoadEntities: true,
-      synchronize: true, // ✅ MUST be false
+      synchronize: false,
       ssl: {
         rejectUnauthorized: false,
       },

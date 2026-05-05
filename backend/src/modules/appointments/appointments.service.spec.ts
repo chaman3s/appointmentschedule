@@ -89,6 +89,11 @@ describe('AppointmentsService', () => {
 
     consultingRepoMock = {
       find: jest.fn().mockResolvedValue([]),
+      findOne: jest.fn().mockResolvedValue({
+        startTime: '09:00',
+        endTime: '17:00',
+        slotDuration: 15,
+      }),
     };
 
     customRepoMock = {
@@ -515,7 +520,8 @@ describe('AppointmentsService', () => {
   describe('findBestAvailableSlot()', () => {
     beforeEach(() => {
       jest.useFakeTimers();
-      jest.setSystemTime(Date.parse('2030-01-15T12:00:00.000Z'));
+      // Use a time that is within consulting hours in local time.
+      jest.setSystemTime(Date.parse('2030-01-15T00:00:00.000Z'));
     });
 
     it('returns exact requested stream slot when available', async () => {
@@ -715,6 +721,18 @@ describe('AppointmentsService', () => {
       ).rejects.toThrow('Cannot book appointment in the past');
     });
 
+    it('rejects appointments beyond 7 days in advance', async () => {
+      await expect(
+        service.bookSlot({
+          doctor_id: 1,
+          user_id: 1,
+          appointment_date: '2030-01-23',
+          start_time: '10:00',
+          end_time: '10:15',
+        } as any),
+      ).rejects.toThrow('Appointments can only be booked up to 7 days in advance');
+    });
+
     it('rejects when user already booked same day', async () => {
       appointmentRepoMock.findOne.mockResolvedValueOnce({
         appointment_id: 22,
@@ -727,11 +745,11 @@ describe('AppointmentsService', () => {
         service.bookSlot({
           doctor_id: 1,
           user_id: 1,
-          appointment_date: '2099-04-22',
+          appointment_date: '2030-01-16',
           start_time: '10:00',
           end_time: '10:15',
         } as any),
-      ).rejects.toThrow('you already book appointment for 2099-04-22');
+      ).rejects.toThrow('you already book appointment for 2030-01-16');
 
       expect(getAvailableSlotsSpy).not.toHaveBeenCalled();
     });
@@ -750,7 +768,7 @@ describe('AppointmentsService', () => {
       const result = await service.bookSlot({
         doctor_id: 1,
         user_id: 1,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
@@ -758,8 +776,8 @@ describe('AppointmentsService', () => {
       expect(result).toEqual({
         booked: false,
         message:
-          'Requested slot unavailable. Next available slot is on 2099-04-22 at 10:15.',
-        next_available_date: '2099-04-22',
+          'Requested slot unavailable. Next available slot is on 2030-01-16 at 10:15.',
+        next_available_date: '2030-01-16',
         next_available_start: '10:15',
         next_available_end: '10:30',
         estimatedTokenNo: 1,
@@ -770,7 +788,7 @@ describe('AppointmentsService', () => {
     });
 
     it('suggests future same time when same day unavailable', async () => {
-      const day0 = '2099-04-22';
+      const day0 = '2030-01-16';
       const day1 = addDaysUtc(day0, 1);
 
       jest.spyOn(service, 'getAvailableSlots').mockImplementation(async (_doctorId, date) => {
@@ -818,7 +836,7 @@ describe('AppointmentsService', () => {
     });
 
     it('suggests future first available when same time not available', async () => {
-      const day0 = '2099-04-22';
+      const day0 = '2030-01-16';
       const day1 = addDaysUtc(day0, 1);
 
       jest.spyOn(service, 'getAvailableSlots').mockImplementation(async (_doctorId, date) => {
@@ -866,7 +884,7 @@ describe('AppointmentsService', () => {
     });
 
     it('continues future search when future day has slots but none available', async () => {
-      const day0 = '2099-04-22';
+      const day0 = '2030-01-16';
       const day1 = addDaysUtc(day0, 1);
       const day2 = addDaysUtc(day0, 2);
 
@@ -927,7 +945,7 @@ describe('AppointmentsService', () => {
         service.bookSlot({
           doctor_id: 1,
           user_id: 1,
-          appointment_date: '2099-04-22',
+          appointment_date: '2030-01-16',
           start_time: '10:00',
           end_time: '10:15',
         } as any),
@@ -948,7 +966,7 @@ describe('AppointmentsService', () => {
         service.bookSlot({
           doctor_id: 1,
           user_id: 1,
-          appointment_date: '2099-04-22',
+          appointment_date: '2030-01-16',
           start_time: '10:00',
           end_time: '10:15',
         } as any),
@@ -969,7 +987,7 @@ describe('AppointmentsService', () => {
         service.bookSlot({
           doctor_id: 1,
           user_id: 1,
-          appointment_date: '2099-04-22',
+          appointment_date: '2030-01-16',
           start_time: '10:00',
           end_time: '11:00',
         } as any),
@@ -977,7 +995,7 @@ describe('AppointmentsService', () => {
     });
 
     it('suggests future wave slot when today wave is full', async () => {
-      const day0 = '2099-04-22';
+      const day0 = '2030-01-16';
       const day1 = addDaysUtc(day0, 1);
 
       jest.spyOn(service, 'getAvailableSlots').mockImplementation(async (_doctorId, date) => {
@@ -1037,7 +1055,7 @@ describe('AppointmentsService', () => {
       const result = await service.bookSlot({
         doctor_id: 5,
         user_id: 7,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '11:00',
       } as any);
@@ -1059,13 +1077,13 @@ describe('AppointmentsService', () => {
       const result = await service.bookSlot({
         doctor_id: 5,
         user_id: 7,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
 
       expect(result.booked).toBe(true);
-      expect(result.booked_date).toBe('2099-04-22');
+      expect(result.booked_date).toBe('2030-01-16');
       expect(result.booked_start).toBe('10:00');
       expect(result.booked_end).toBe('10:15');
       expect(result.appointment.status).toBe(AppointmentStatus.BOOKED);
@@ -1086,7 +1104,7 @@ describe('AppointmentsService', () => {
         doctor_id: 5,
         user_id: 7,
         patient_id: 99,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
@@ -1105,7 +1123,7 @@ describe('AppointmentsService', () => {
       const result = await service.bookSlot({
         doctor_id: 5,
         user_id: 7,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
@@ -1126,12 +1144,19 @@ describe('AppointmentsService', () => {
       await service.bookSlot({
         doctor_id: 1,
         user_id: 2,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
 
-      expect(occupiedSpy).toHaveBeenCalledWith(managerMock, 1, '2099-04-22', '10:00', undefined, true);
+      expect(occupiedSpy).toHaveBeenCalledWith(
+        managerMock,
+        1,
+        '2030-01-16',
+        '10:00',
+        undefined,
+        true,
+      );
     });
 
     it.each([
@@ -1156,13 +1181,94 @@ describe('AppointmentsService', () => {
       const result = await service.bookSlot({
         doctor_id: 1,
         user_id: 1,
-        appointment_date: '2099-04-22',
+        appointment_date: '2030-01-16',
         start_time: '10:00',
         end_time: '10:15',
       } as any);
 
       expect(result.booked).toBe(false);
       expect(result.next_available_start).toBe(expectedStart);
+    });
+  });
+
+  describe('cancelAppointment()', () => {
+    const managerMock = {
+      query: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      findOne: jest.fn(),
+    };
+
+    beforeEach(() => {
+      dataSourceMock.transaction.mockImplementation(async (cb: any) =>
+        cb(managerMock),
+      );
+      managerMock.query.mockReset();
+      managerMock.update.mockClear();
+      managerMock.findOne.mockReset();
+    });
+
+    it('throws when appointment not found', async () => {
+      managerMock.query.mockResolvedValueOnce([undefined]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Appointment not found',
+      );
+    });
+
+    it('throws when already cancelled', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 1, user_id: 2, status: AppointmentStatus.CANCELLED },
+      ]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Appointment already cancelled',
+      );
+    });
+
+    it('throws when completed', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 1, user_id: 2, status: AppointmentStatus.COMPLETED },
+      ]);
+
+      await expect(service.cancelAppointment(1, 2)).rejects.toThrow(
+        'Completed appointments cannot be cancelled',
+      );
+    });
+
+    it('cancels booked appointment', async () => {
+      managerMock.query.mockResolvedValueOnce([
+        { appointment_id: 10, user_id: 20, status: AppointmentStatus.BOOKED },
+      ]);
+      managerMock.findOne.mockResolvedValueOnce({
+        appointment_id: 10,
+        status: AppointmentStatus.CANCELLED,
+      });
+
+      const result = await service.cancelAppointment(10, 20, 'not coming');
+
+      expect(managerMock.update).toHaveBeenCalledWith(
+        Appointment,
+        { appointment_id: 10 },
+        { status: AppointmentStatus.CANCELLED, expires_at: null },
+      );
+      expect(result.status).toBe(AppointmentStatus.CANCELLED);
+    });
+  });
+
+  describe('holdNextSlot()', () => {
+    it('rejects when requested date beyond 7 days in advance', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(Date.parse('2030-01-15T12:00:00.000Z'));
+
+      await expect(
+        service.holdNextSlot(
+          {
+            doctor_id: 1,
+            appointment_date: '2030-01-23',
+          } as any,
+          1,
+        ),
+      ).rejects.toThrow('Appointments can only be booked up to 7 days in advance');
     });
   });
 
