@@ -90,7 +90,6 @@ export class AppointmentsController {
   @Post()
   book(@Req() req, @Body() dto: CreateAppointmentDto) {
     const userId = req.user.id;
-    console.log('id:', userId);
     return this.appointmentsService.bookSlot({
       ...dto,
       user_id: userId, // 🔐 override user_id

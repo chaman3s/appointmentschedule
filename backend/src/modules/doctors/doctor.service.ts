@@ -72,7 +72,6 @@ export class DoctorServices {
     };
   }
   async getDoctorProfile(id: any) {
-    console.log("userid:", id)
     const user = await this.doctorsRepo.findOne({
       where: { id },
     });

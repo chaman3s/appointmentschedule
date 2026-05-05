@@ -127,7 +127,6 @@ async findBestAvailableSlot(
     doctorId,
     requestedDate, 
   );
-  console.log("9:",leaveAdjustedDate)
   if (leaveAdjustedDate !== requestedDate) {
     const next = await this.getSlotsWithNextAvailable(
       doctorId,
@@ -361,7 +360,6 @@ private async afterLeaveSlotAvailable(
       isFullDay:false
     }
  });
- console.log("12:",leave)
 
  const consulting =
   await this.consultingRepo.findOne({
@@ -447,7 +445,6 @@ private async afterLeaveSlotAvailable(
 
   // no full-day leave
   if(fullDay.length===0){
-    console.log("ok1")
 
     const hasSlots =
       await this.afterLeaveSlotAvailable(
@@ -456,7 +453,6 @@ private async afterLeaveSlotAvailable(
       );
     
     if(hasSlots){
-      console.log("ok2")
       return date;
     }else{
       return this.addDays(date,1); // next day
@@ -511,7 +507,6 @@ async bookSlot(
  return this.dataSource.transaction(
   async (manager) => {
    const {doctor_id,appointment_date,start_time,end_time} = dto;
-   console.log("log id:",doctor_id)
    const appointmentDateTime = new Date(`${appointment_date}T${start_time}:00`);
    const now = new Date();
  if (appointmentDateTime < now) {
@@ -545,7 +540,6 @@ async bookSlot(
       doctor_id,
       appointment_date,
     );
-    console.log("6:", current)
 
    const dateAvailability = await this.getDateAvailability(
      doctor_id,
@@ -602,7 +596,6 @@ if (!requestedAvailable) {
     start_time,
     end_time,
   );
-console.log("be:",best)
   const tokenNo = await this.getTokenNummber(doctor_id, best.date);
   const reportTime = await this.getRepporting(doctor_id, best.start);
   const reason =
@@ -613,7 +606,6 @@ console.log("be:",best)
           appointment_date,
           current.is_working_day,
         );
-console.log("hi",best.date)
   return {
     booked: false,
     message: this.formatNextAvailableMessage(reason, best.date, best.start),
@@ -1098,7 +1090,6 @@ if (existing) {
     summary: SlotSummary;
   }> {
     await this.cleanupExpiredReservations();
-    console.log("1")
     const clinicOpen = await this.isClinicOpenForDoctor(doctorId, date);
     if (!clinicOpen.isOpen) {
       return {
@@ -1109,10 +1100,8 @@ if (existing) {
       };
     }
     const clinicId = await this.getClinicIdForDoctor(doctorId);
-     console.log("2:",date)
   
     if (await this.isDoctorOnLeaveFullDay(doctorId, date)) {
-      console.log("3")
       return {
         scheduling_type: SchedulingType.STREAM,
         slots: [],
@@ -1126,7 +1115,6 @@ if (existing) {
         date,
       },
     });
-    console.log("ecust",custom)
 
     if (custom) {
       let slots = await this.handleStream(
@@ -1141,7 +1129,6 @@ if (existing) {
       if (clinicId) {
         slots = await this.applyClinicClosuresToStreamSlots(clinicId, date, slots);
       }
-      console.log("5",slots)
       return {
         scheduling_type: SchedulingType.STREAM,
         slots,
@@ -1156,13 +1143,11 @@ if (existing) {
       where: { doctor: { id: doctorId } },
       relations: ['days'],
     });
-    console.log("consul:",consultingList)
 
 
     const matchedList = consultingList.filter((c) =>
       c.days?.some((d) => d.day === dayName),
     );
-     console.log("7:",matchedList)
     if (matchedList.length === 0) {
       return {
         scheduling_type: SchedulingType.STREAM,

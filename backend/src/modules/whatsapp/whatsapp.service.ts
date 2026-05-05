@@ -85,7 +85,6 @@ if (date && start && end) {
     scheduling_type: availability.scheduling_type,
     consulting_type: 'ONLINE',
   });
-  console.log("res:",result)
   if (!result.booked) {
   return this.reply(
     phone,
@@ -293,13 +292,7 @@ const consulting_type = 'ONLINE';
     if (msg.includes('11')) return '11:00';
     return '09:00';
   }
-
-  // =========================
-  // 📤 SEND RESPONSE
-  // =========================
   async reply(phone: string, text: string) {
-    // 👉 integrate WhatsApp API here (Meta/Twilio)
-    console.log(`Reply to ${phone}: ${text}`);
 
     return {
       to: phone,
